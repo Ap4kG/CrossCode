@@ -9,7 +9,7 @@ type BaseMenuItem = {
   ignoreShortcutInMonaco?: boolean;
 };
 
-export type MenuItem = BaseMenuItem &
+export type MenuBarItem = BaseMenuItem &
   (
     | { callback: () => void }
     | { callbackName: string }
@@ -24,7 +24,7 @@ export type MenuItem = BaseMenuItem &
 
 type MenuGroup = {
   label: string;
-  items: MenuItem[];
+  items: MenuBarItem[];
 };
 
 export type MenuBarData = {
@@ -77,7 +77,7 @@ const MenuGroup: React.FC<MenuGroupProps> = ({
                     key={itemIndex}
                     onClick={() => {
                       resetMenuIndex();
-                      let callback;
+                      let callback: () => void = () => {};
                       if (
                         "callbackName" in item &&
                         typeof item.callbackName === "string"

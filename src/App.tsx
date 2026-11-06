@@ -1,20 +1,25 @@
+import { lazy, Suspense } from "react";
 import { CssVarsProvider, extendTheme } from "@mui/joy/styles";
 import { Sheet } from "@mui/joy";
 import "@fontsource/inter";
 import "@fontsource/inter/600.css";
 import Onboarding from "./pages/Onboarding";
-import IDE from "./pages/IDE";
-import Preferences from "./preferences/Preferences";
 import { BrowserRouter, Route, Routes, Navigate, Outlet } from "react-router";
 import { StoreProvider, useStore } from "./utilities/StoreContext";
 import { IDEProvider } from "./utilities/IDEContext";
 import { CommandProvider } from "./utilities/Command";
 import { ToastProvider } from "react-toast-plus";
-import New from "./pages/New";
-import NewTemplate from "./pages/NewTemplate";
 import "vscode/localExtensionHost";
 import { UpdateProvider } from "./utilities/UpdateContext";
-import About from "./pages/About";
+import ErrorBoundary from "./components/ErrorBoundary";
+
+// Heavy pages (Monaco, preference registry, ...) are split into their own
+// chunks so the welcome screen can render without loading the editor.
+const IDE = lazy(() => import("./pages/IDE"));
+const New = lazy(() => import("./pages/New"));
+const NewTemplate = lazy(() => import("./pages/NewTemplate"));
+const Preferences = lazy(() => import("./preferences/Preferences"));
+const About = lazy(() => import("./pages/About"));
 
 declare module "@mui/joy/IconButton" {
   interface IconButtonPropsSizeOverrides {
@@ -49,7 +54,7 @@ const IDELayout = () => {
       <ToastProvider
         toastOptions={{ placement: "bottom-right" }}
         toastStyles={
-          appTheme == "dark"
+          appTheme === "dark"
             ? { toastBgColor: "#333", toastTextColor: "#fff" }
             : {}
         }
@@ -80,18 +85,22 @@ const App = () => {
             overflow: "auto",
           }}
         >
-          <Routes>
-            <Route element={<IDELayout />}>
-              <Route index element={<Onboarding />} />
-              <Route path="/ide/:path" element={<IDE />} />
-              <Route path="/new" element={<New />} />
-              <Route path="/new/:template" element={<NewTemplate />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+          <ErrorBoundary>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route element={<IDELayout />}>
+                  <Route index element={<Onboarding />} />
+                  <Route path="/ide/:path" element={<IDE />} />
+                  <Route path="/new" element={<New />} />
+                  <Route path="/new/:template" element={<NewTemplate />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
 
-              <Route path="/preferences/:page?" element={<Preferences />} />
-            </Route>
-            <Route path="/about" element={<About />} />
-          </Routes>
+                  <Route path="/preferences/:page?" element={<Preferences />} />
+                </Route>
+                <Route path="/about" element={<About />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </Sheet>
       </CssVarsProvider>
     </BrowserRouter>

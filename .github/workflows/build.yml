@@ -11,8 +11,75 @@ on:
   release:
     types: [published]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # Releases must never be cancelled mid-flight.
+  cancel-in-progress: ${{ github.event_name != 'release' }}
+
 jobs:
+  checks:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Rust and bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.bun/install/cache
+            src-tauri/target
+            node_modules
+          key: checks-${{ hashFiles('**/Cargo.lock', 'bun.lock') }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun i --frozen-lockfile
+
+      - name: Type check
+        run: bunx tsc --noEmit
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Frontend unit tests
+        run: bun test
+
+      - name: Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Rust clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+  audit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Rust dependencies for known advisories
+        uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   build:
+    needs: checks
     permissions:
       contents: write
     strategy:
@@ -42,9 +109,10 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
+            ~/.bun/install/cache
             src-tauri/target
             node_modules
-          key: ${{ matrix.platform }}-crosscode-${{ hashFiles('**/Cargo.lock', 'package-lock.json') }}
+          key: ${{ matrix.platform }}-crosscode-${{ hashFiles('**/Cargo.lock', 'bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-crosscode-
 

@@ -36,6 +36,10 @@ Check out the [Getting Started](https://github.com/nab138/CrossCode/wiki#getting
 - Install apps on device
 - Create projects from templates
 - Code editing including error reporting, autocomplete, go to definition, and other language features
+- Quick open files with `Ctrl+P` (recently opened files first, `file:42` to jump to a line, `#query` to search file contents), draggable editor tabs, and optional auto save
+- Built-in Git panel with branch status, staged/unstaged changes, side-by-side diffs, stage/unstage (single file or all), amend and commit
+- Device setup check: verifies the USB connection, the developer disk image and iOS 16+ Developer Mode, and mounts the image for you
+- Recent projects on the welcome screen
 - Light/dark mode and other customizations
 - View and manage certificates, app IDs, and more
 - View the syslog or the stdout (console) of your device/app
@@ -63,3 +67,53 @@ Please note that I am one person, so development may be slow. If you want to hel
 ### AI Usage
 
 - Helped port small sections of code from [Sideloader](https://github.com/Dadoum/Sideloader) because I'm not familiar with dlang syntax
+
+## Architecture
+
+CrossCode is a Tauri 2 application with a React/TypeScript frontend and a Rust backend.
+
+- `src/` — the UI. `pages/` contains the welcome screen, project creation, and the IDE; `components/` contains the editor, file explorer, menus, console and the quick-open palette; `preferences/` is a small registry-driven settings framework; `utilities/` holds shared contexts, LSP wiring, the Tauri filesystem provider and pure helpers.
+- `src-tauri/src/` — native logic exposed as Tauri commands:
+  - `builder/` — Darwin SDK generation, Swift/SwiftPM builds and `.app`/`.ipa` packaging.
+  - `sideloader/` — Apple Developer APIs, device communication, signing, syslog/stdout streaming.
+  - `sourcekit_lsp.rs`, `lsp_utils.rs` — SourceKit-LSP lifecycle and project validation.
+  - `windows.rs`, `builder/crossplatform.rs` — WSL path handling and command execution.
+  - `git.rs` - Git integration used by the bottom panel (status, diffs, staging, commit/amend, before/after file contents).
+  - `search.rs` - project-wide content search used by the quick-open palette.
+- `src-tauri/templates/` — starter projects used by the "New Project" flow.
+- `sdkmover/` — helper crate that moves a generated SDK inside WSL.
+
+The editor is Monaco (the VS Code editor core) with the VS Code language/theme/textmate services, so most editor features live in `components/Tiles/Editor.tsx`.
+
+## Development
+
+Prerequisites:
+
+- [Rust](https://rustup.rs/) stable (with `rustfmt` and `clippy`)
+- [Bun](https://bun.sh/) and Node.js 20+
+- Linux: the Tauri system dependencies (`libwebkit2gtk-4.1-dev`, `libappindicator3-dev`, `librsvg2-dev`, `patchelf`)
+- Windows: WSL2 is required to build iOS apps (not needed to work on the UI)
+
+```bash
+bun install
+bun run tauri dev   # run the app with hot reload
+```
+
+Useful checks (also run in CI):
+
+```bash
+bun run typecheck                 # tsc --noEmit
+bun run lint                      # Biome (lint only; formatting is left to the editor)
+bun test                          # frontend unit tests (bun:test)
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+Biome only runs the linter (`biome.json` keeps `formatter.enabled` off) so it does not reformat the
+tree; a few rules are disabled where the existing code intentionally uses the pattern (ANSI HTML in
+the console, non-focusable drag containers, promise wrappers around async setup). CI also runs
+`cargo audit` and Dependabot keeps npm/cargo/GitHub Actions dependencies up to date.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+

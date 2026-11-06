@@ -5,3 +5,10 @@
   scrollbar-color: #888 #000;
   box-sizing: border-box;
 }
+
+.git-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}

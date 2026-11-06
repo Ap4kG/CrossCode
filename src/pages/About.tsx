@@ -26,7 +26,7 @@ export default () => {
               <Typography level="h1">CrossCode</Typography>
               <Typography level="body-md">
                 Version {version}{" "}
-                <span style={{ opacity: 0.7 }}>(Early Access)</span>
+                <span style={{ opacity: 0.7 }}>(Beta)</span>
               </Typography>
             </div>
           </div>

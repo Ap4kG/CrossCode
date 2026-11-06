@@ -11,6 +11,7 @@ import Console from "./Console";
 import FilteredConsole, { FilteredConsoleHandle } from "./FilteredConsole";
 import { useParams } from "react-router";
 import { useStore } from "../../utilities/StoreContext";
+import GitPanel from "../GitPanel";
 
 const staticTabs = [
   {
@@ -25,7 +26,11 @@ const staticTabs = [
   },
 ];
 
-export default function BottomBar() {
+export default function BottomBar({
+  onOpenFile,
+}: {
+  onOpenFile: (file: string) => void;
+}) {
   const [focused, setFocused] = useState<number>();
   const [refreshSyslog, setRefreshSyslog] = useState<number>(0);
   const [runningSyslog, setRunningSyslog] = useState<boolean>(false);
@@ -36,6 +41,7 @@ export default function BottomBar() {
 
   const syslogRef = useRef<FilteredConsoleHandle>(null);
   const stdoutRef = useRef<FilteredConsoleHandle>(null);
+  const { path } = useParams<"path">();
 
   useEffect(() => {
     const checkSyslog = async () => {
@@ -97,6 +103,9 @@ export default function BottomBar() {
           </Tab>
           <Tab value={staticTabs.length + 1} indicatorPlacement="bottom">
             App Console
+          </Tab>
+          <Tab value={staticTabs.length + 2} indicatorPlacement="bottom">
+            Git
           </Tab>
           {focused === staticTabs.length && (
             <BottomBarFilter
@@ -166,6 +175,9 @@ export default function BottomBar() {
             ref={stdoutRef}
           />
           ,
+        </TabPanel>
+        <TabPanel value={staticTabs.length + 2} sx={{ padding: 0 }} keepMounted>
+          <GitPanel projectPath={path ?? ""} onOpenFile={onOpenFile} />
         </TabPanel>
       </Tabs>
     </div>

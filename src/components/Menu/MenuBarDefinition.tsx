@@ -37,6 +37,11 @@ export default [
         label: "Open",
         items: [
           {
+            name: "Go to File...",
+            shortcut: "Ctrl+P",
+            callbackName: "quickOpen",
+          },
+          {
             name: "Open File...",
             shortcut: "Ctrl+O",
             callbackName: "openFile",
@@ -277,6 +282,15 @@ export default [
               );
             },
             componentId: "deployMenuBtn",
+          },
+        ],
+      },
+      {
+        label: "Device",
+        items: [
+          {
+            name: "Device Setup Check...",
+            callbackName: "deviceSetup",
           },
         ],
       },

@@ -28,7 +28,7 @@ pub async fn sideload_app(
     app_path: PathBuf,
 ) -> Result<(), String> {
     let dev_session =
-        crate::sideloader::apple::get_developer_session(&handle, &window, anisette_server.clone())
+        crate::sideloader::apple::get_developer_session(handle, window, anisette_server.clone())
             .await?;
     let logger = TauriLogger {
         window: Arc::new(window.clone()),

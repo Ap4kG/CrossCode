@@ -168,7 +168,7 @@ export const IDEProvider: React.FC<{
       let result = await invoke<string>("has_darwin_sdk", {
         toolchainPath: selectedToolchain?.path || "",
       });
-      setHasDarwinSDK(result != "none");
+      setHasDarwinSDK(result !== "none");
       setDarwinSDKVersion(result);
     } catch (e) {
       console.error("Failed to check for SDK:", e);
@@ -274,7 +274,7 @@ export const IDEProvider: React.FC<{
       invoke<string>("has_darwin_sdk", {
         toolchainPath: selectedToolchain?.path ?? "",
       }).then((response) => {
-        setHasDarwinSDK(response != "none");
+        setHasDarwinSDK(response !== "none");
         setDarwinSDKVersion(response);
       })
     );
@@ -450,7 +450,7 @@ export const IDEProvider: React.FC<{
           "operation_" + operation.id,
           (event) => {
             setOperationState((old) => {
-              if (old == null) return null;
+              if (old === null || old === undefined) return null;
               if (event.payload.updateType === "started") {
                 return {
                   ...old,

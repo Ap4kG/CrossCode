@@ -104,7 +104,54 @@ pub async fn is_ddi_mounted(device: DeviceInfo) -> Result<bool, String> {
         )
     })?;
 
-    Ok(devices.len() > 0)
+    Ok(!devices.is_empty())
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceStatus {
+    pub device_name: String,
+    pub product_version: Option<String>,
+    pub build_version: Option<String>,
+    pub developer_mode_enabled: Option<bool>,
+    pub ddi_mounted: bool,
+}
+
+#[tauri::command]
+pub async fn device_status(device: DeviceInfo) -> Result<DeviceStatus, String> {
+    let provider = get_provider(&device).await?;
+
+    let mut lockdown_client = LockdownClient::connect(&provider)
+        .await
+        .map_err(|e| format!("Failed to connect to lockdown: {}", e))?;
+
+    let product_version = lockdown_client
+        .get_value(Some("ProductVersion"), None)
+        .await
+        .ok()
+        .and_then(|value| value.as_string().map(|value| value.to_string()));
+
+    let build_version = lockdown_client
+        .get_value(Some("BuildVersion"), None)
+        .await
+        .ok()
+        .and_then(|value| value.as_string().map(|value| value.to_string()));
+
+    let developer_mode_enabled = lockdown_client
+        .get_value(Some("DeveloperModeStatus"), None)
+        .await
+        .ok()
+        .and_then(|value| value.as_boolean());
+
+    let ddi_mounted = is_ddi_mounted(device.clone()).await.unwrap_or(false);
+
+    Ok(DeviceStatus {
+        device_name: device.name,
+        product_version,
+        build_version,
+        developer_mode_enabled,
+        ddi_mounted,
+    })
 }
 
 // https://github.com/jkcoxson/idevice/blob/master/tools/src/mounter.rs
@@ -240,7 +287,7 @@ pub async fn download_ddi(
 
     futures::future::join_all(download_futures).await;
 
-    return Ok((image_path, sig_path));
+    Ok((image_path, sig_path))
 }
 
 pub async fn download_personalized_image(
@@ -271,7 +318,7 @@ pub async fn download_personalized_image(
     }
     futures::future::join_all(download_futures).await;
 
-    return Ok((build_manifest_path, trust_cache_path, image_path));
+    Ok((build_manifest_path, trust_cache_path, image_path))
 }
 
 pub async fn download(url: impl AsRef<str>, dest: &PathBuf) -> Result<(), String> {

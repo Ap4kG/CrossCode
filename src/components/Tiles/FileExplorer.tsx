@@ -204,49 +204,65 @@ export default ({ openFolder, setOpenFile }: FileExplorerProps) => {
 
   const handleRename = async () => {
     if (!renameTarget) return;
-    const parent = await path.dirname(renameTarget);
-    const newPath = await path.resolve(parent, renameValue);
-    await fs.rename(renameTarget, newPath);
-    setRenameOpen(false);
-    setRenameTarget(null);
-    setRenameValue("");
-    setRefresh((r) => r + 1);
+    try {
+      const parent = await path.dirname(renameTarget);
+      const newPath = await path.resolve(parent, renameValue);
+      await fs.rename(renameTarget, newPath);
+      setRenameOpen(false);
+      setRenameTarget(null);
+      setRenameValue("");
+      setRefresh((r) => r + 1);
+    } catch (error) {
+      addToast.error("Failed to rename: " + error);
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    await fs.remove(deleteTarget, { recursive: true });
-    setDeleteOpen(false);
-    setDeleteTarget(null);
-    setRefresh((r) => r + 1);
+    try {
+      await fs.remove(deleteTarget, { recursive: true });
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+      setRefresh((r) => r + 1);
+    } catch (error) {
+      addToast.error("Failed to delete: " + error);
+    }
   };
 
   const handleNewFile = async () => {
     if (!newTarget) return;
-    const newPath = await path.resolve(newTarget, newValue);
-    if (await fs.exists(newPath)) {
-      addToast.error("File already exists!");
-      return;
+    try {
+      const newPath = await path.resolve(newTarget, newValue);
+      if (await fs.exists(newPath)) {
+        addToast.error("File already exists!");
+        return;
+      }
+      await fs.writeTextFile(newPath, "");
+      setNewOpen(false);
+      setNewTarget(null);
+      setNewValue("");
+      setRefresh((r) => r + 1);
+    } catch (error) {
+      addToast.error("Failed to create file: " + error);
     }
-    await fs.writeTextFile(newPath, "");
-    setNewOpen(false);
-    setNewTarget(null);
-    setNewValue("");
-    setRefresh((r) => r + 1);
   };
 
   const handleNewFolder = async () => {
     if (!newFolderTarget) return;
-    const newPath = await path.resolve(newFolderTarget, newFolderValue);
-    if (await fs.exists(newPath)) {
-      addToast.error("Folder already exists!");
-      return;
+    try {
+      const newPath = await path.resolve(newFolderTarget, newFolderValue);
+      if (await fs.exists(newPath)) {
+        addToast.error("Folder already exists!");
+        return;
+      }
+      await fs.mkdir(newPath);
+      setNewFolderOpen(false);
+      setNewFolderTarget(null);
+      setNewFolderValue("");
+      setRefresh((r) => r + 1);
+    } catch (error) {
+      addToast.error("Failed to create folder: " + error);
     }
-    await fs.mkdir(newPath);
-    setNewFolderOpen(false);
-    setNewFolderTarget(null);
-    setNewFolderValue("");
-    setRefresh((r) => r + 1);
   };
 
   return (
@@ -399,33 +415,6 @@ export default ({ openFolder, setOpenFile }: FileExplorerProps) => {
             <Button onClick={() => setNewFolderOpen(false)}>Cancel</Button>
             <Button onClick={handleNewFolder} disabled={!newFolderValue.trim()}>
               Create
-            </Button>
-          </Box>
-        </ModalDialog>
-      </Modal>
-
-      {/* Rename Modal */}
-      <Modal open={renameOpen} onClose={() => setRenameOpen(false)}>
-        <ModalDialog>
-          <Typography level="h4" component="h2" sx={{ mb: 2 }}>
-            Rename
-          </Typography>
-          <Input
-            autoFocus
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={async (e) => {
-              if (e.key === "Enter") {
-                await handleRename();
-              }
-            }}
-          />
-          <Box
-            sx={{ display: "flex", gap: 1, justifyContent: "flex-end", mt: 2 }}
-          >
-            <Button onClick={() => setRenameOpen(false)}>Cancel</Button>
-            <Button onClick={handleRename} disabled={!renameValue.trim()}>
-              Rename
             </Button>
           </Box>
         </ModalDialog>

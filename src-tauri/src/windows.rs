@@ -56,7 +56,7 @@ pub fn has_wsl() -> bool {
         let output = output.unwrap();
 
         let output = String::from_utf8_lossy(&output.stdout);
-        return output.trim() == "1";
+        output.trim() == "1"
     }
 }
 

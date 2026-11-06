@@ -109,7 +109,7 @@ impl SwiftBin {
         #[cfg(target_os = "windows")]
         {
             if !has_wsl() {
-                return Err(io::Error::new(io::ErrorKind::Other, "WSL is not available"));
+                return Err(io::Error::other("WSL is not available"));
             }
             let mut cmd = Command::new("wsl");
             cmd.args(["bash", "-l", "-c"])
@@ -272,7 +272,7 @@ pub async fn get_swiftly_toolchains() -> Result<ToolchainResult, String> {
             toolchains: vec![],
         });
     }
-    if let Some(_) = swiftly_home_dir {
+    if swiftly_home_dir.is_some() {
         let config = get_swiftly_config()?;
         let toolchains_unfiltered: Vec<Toolchain> = config
             .installed_toolchains
@@ -312,17 +312,17 @@ pub async fn get_swiftly_toolchains() -> Result<ToolchainResult, String> {
             }
         }
 
-        return Ok(ToolchainResult {
+        Ok(ToolchainResult {
             swiftly_installed: true,
             swiftly_version: Some(config.version),
             toolchains,
-        });
+        })
     } else {
-        return Ok(ToolchainResult {
+        Ok(ToolchainResult {
             swiftly_installed: false,
             swiftly_version: None,
             toolchains: vec![],
-        });
+        })
     }
 }
 
@@ -366,13 +366,13 @@ async fn build_swift_internal(
     build_settings: BuildSettings,
     emit_exit_code: bool,
 ) -> Result<(PathBuf, ProjectConfig), String> {
-    let config = match ProjectConfig::load(PathBuf::from(&folder), &toolchain_path) {
+    let config = match ProjectConfig::load(PathBuf::from(&folder), toolchain_path) {
         Ok(config) => config,
         Err(e) => {
-            return emit_error_and_return(&window, &format!("Failed to load project config: {}", e))
+            return emit_error_and_return(window, &format!("Failed to load project config: {}", e))
         }
     };
-    let swift_bin = SwiftBin::new(&toolchain_path)?;
+    let swift_bin = SwiftBin::new(toolchain_path)?;
     let mut cmd = swift_bin.command();
     cmd.arg("build")
         .arg("-c")
@@ -383,9 +383,9 @@ async fn build_swift_internal(
         })
         .arg("--swift-sdk")
         .arg("arm64-apple-ios")
-        .current_dir(&folder);
+        .current_dir(folder);
 
-    pipe_command(&mut cmd, &window, emit_exit_code).await?;
+    pipe_command(&mut cmd, window, emit_exit_code).await?;
 
     match pack(PathBuf::from(&folder), &config, &build_settings) {
         Ok(app) => {
@@ -394,7 +394,7 @@ async fn build_swift_internal(
                 .expect("failed to send output");
             Ok((app, config))
         }
-        Err(e) => emit_error_and_return(&window, &format!("Failed to pack app: {}", e)),
+        Err(e) => emit_error_and_return(window, &format!("Failed to pack app: {}", e)),
     }
 }
 
@@ -490,21 +490,21 @@ pub async fn pipe_command(
     let mut command = match cmd.spawn() {
         Ok(cmd) => cmd,
         Err(_) => {
-            return emit_error_and_return(&window, "Failed to spawn build command");
+            return emit_error_and_return(window, "Failed to spawn build command");
         }
     };
 
     let stdout = match command.stdout.take() {
         Some(out) => out,
         None => {
-            return emit_error_and_return(&window, "Failed to get stdout");
+            return emit_error_and_return(window, "Failed to get stdout");
         }
     };
 
     let stderr = match command.stderr.take() {
         Some(err) => err,
         None => {
-            return emit_error_and_return(&window, "Failed to get stderr");
+            return emit_error_and_return(window, "Failed to get stderr");
         }
     };
 
@@ -517,7 +517,7 @@ pub async fn pipe_command(
     let exit_status = match command.wait() {
         Ok(status) => status,
         Err(_) => {
-            return emit_error_and_return(&window, "Failed to wait for command");
+            return emit_error_and_return(window, "Failed to wait for command");
         }
     };
 

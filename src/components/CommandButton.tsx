@@ -95,7 +95,7 @@ export default function CommandButton({
         }}
       >
         {icon !== undefined && icon}
-        {label != "" && label != undefined && label}
+        {label !== "" && label !== undefined && label}
       </div>
       {shortcut !== undefined && " "}
       {shortcut}

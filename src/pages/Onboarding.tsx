@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-shell";
 import "./Onboarding.css";
-import { Button, Card, CardContent, Divider, Link, Typography } from "@mui/joy";
+import { Button, Box, Card, CardContent, Divider, IconButton, Link, Typography } from "@mui/joy";
 import { useIDE } from "../utilities/IDEContext";
 import logo from "../assets/logo.png";
 import { useLocation, useNavigate } from "react-router";
@@ -15,14 +15,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { useToast } from "react-toast-plus";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { SWIFT_VERSION_PREFIX } from "../utilities/constants";
+import CloseIcon from "@mui/icons-material/Close";
+import { useStore } from "../utilities/StoreContext";
+import {
+  RecentProject,
+  formatRelativeTime,
+  removeRecentProject,
+} from "../utilities/recentProjects";
 
-export interface OnboardingProps {}
-
-export default ({}: OnboardingProps) => {
+export default () => {
   const { ready, hasWSL, isWindows, openFolderDialog } = useIDE();
   const [version, setVersion] = useState<string>("");
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const [recentProjects, setRecentProjects] = useStore<RecentProject[]>(
+    "recent-projects",
+    []
+  );
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -119,6 +128,84 @@ export default ({}: OnboardingProps) => {
           Open Project
         </Button>
       </div>
+
+      {recentProjects.length > 0 && (
+        <Card
+          variant="soft"
+          sx={{ width: "100%", maxWidth: "900px", marginTop: "var(--padding-sm)" }}
+        >
+          <Typography level="h3">Recent Projects</Typography>
+          <Divider />
+          <CardContent sx={{ gap: "var(--padding-xs)" }}>
+            {recentProjects.slice(0, 5).map((project) => (
+              <Box
+                key={project.path}
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "var(--padding-xs)",
+                }}
+              >
+                <Button
+                  variant="plain"
+                  disabled={!ready}
+                  onClick={() =>
+                    navigate("/ide/" + encodeURIComponent(project.path))
+                  }
+                  sx={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: "block",
+                    textAlign: "left",
+                    justifyContent: "flex-start",
+                  }}
+                >
+                  <Typography
+                    level="body-sm"
+                    sx={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {project.name}
+                  </Typography>
+                  <Typography
+                    level="body-xs"
+                    textColor="text.tertiary"
+                    sx={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {project.path}
+                  </Typography>
+                  <Typography
+                    level="body-xs"
+                    textColor="text.tertiary"
+                    sx={{ flexShrink: 0 }}
+                  >
+                    {formatRelativeTime(project.openedAt)}
+                  </Typography>
+                </Button>
+                <IconButton
+                  size="sm"
+                  variant="plain"
+                  title="Remove from recent projects"
+                  onClick={() =>
+                    setRecentProjects((previous) =>
+                      removeRecentProject(previous, project.path)
+                    )
+                  }
+                >
+                  <CloseIcon />
+                </IconButton>
+              </Box>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Typography
         level={ready ? "body-sm" : "body-md"}

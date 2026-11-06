@@ -11,6 +11,8 @@ pub struct BuildSettings {
 }
 
 // TODO: Min ios version, etc.
+// `project_path` is kept for future use by the build pipeline.
+#[allow(dead_code)]
 pub struct ProjectConfig {
     pub product: String,
     pub version_num: String,
@@ -33,6 +35,9 @@ pub struct ProjectTomlConfig {
 }
 
 // TODO: Check platforms
+// Only the parts that are used are read; the rest exists to mirror the
+// `swift package dump-package` output.
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct SwiftPackageDump {
     name: String,
@@ -40,6 +45,7 @@ struct SwiftPackageDump {
 }
 
 // TODO: Resources
+#[allow(dead_code)]
 #[derive(Deserialize)]
 struct SwiftPackageTarget {
     name: String,
@@ -103,7 +109,7 @@ impl ProjectConfig {
         }
 
         let swift = SwiftBin::new(toolchain_path);
-        if let Err(_) = swift {
+        if swift.is_err() {
             return ProjectValidation::InvalidToolchain;
         }
         let swift = swift.unwrap();
@@ -114,7 +120,7 @@ impl ProjectConfig {
             .arg("dump-package")
             .current_dir(&project_path)
             .output();
-        if let Err(_) = raw_package {
+        if raw_package.is_err() {
             return ProjectValidation::InvalidToolchain;
         }
         let raw_package = raw_package.unwrap();
@@ -124,7 +130,7 @@ impl ProjectConfig {
         }
 
         let package = serde_json::from_slice::<SwiftPackageDump>(&raw_package.stdout);
-        if let Err(_) = package {
+        if package.is_err() {
             return ProjectValidation::InvalidPackage;
         }
 

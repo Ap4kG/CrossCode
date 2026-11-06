@@ -1,7 +1,7 @@
 import Splitter, { GutterTheme, SplitDirection } from "@devbookhq/splitter";
 import Tile from "../components/Tiles/Tile";
 import FileExplorer from "../components/Tiles/FileExplorer";
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import Editor from "../components/Tiles/Editor";
 import MenuBar from "../components/Menu/MenuBar";
 import "./IDE.css";
@@ -27,8 +27,14 @@ import { open as openFileDialog, save } from "@tauri-apps/plugin-dialog";
 import { IStandaloneCodeEditor } from "@codingame/monaco-vscode-api/vscode/vs/editor/standalone/browser/standaloneCodeEditor";
 import { DARWIN_SDK_VERSION } from "../utilities/constants";
 import { writeFile } from "@tauri-apps/plugin-fs";
-
-export interface IDEProps {}
+import QuickOpen from "../components/QuickOpen";
+import DeviceWizard from "../components/DeviceWizard";
+import { path as pathApi } from "@tauri-apps/api";
+import {
+  addRecentProject,
+  RecentProject,
+} from "../utilities/recentProjects";
+import { addRecentFile } from "../utilities/recentFiles";
 
 type ProjectValidation =
   | "Valid"
@@ -43,6 +49,11 @@ export default () => {
   const { storeInitialized, store } = useContext(StoreContext);
   const [openFile, setOpenFile] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [deviceSetupOpen, setDeviceSetupOpen] = useState(false);
+  const [reveal, setReveal] = useState<{ file: string; line: number } | null>(
+    null
+  );
   const [saveFile, setSaveFile] = useState<(() => Promise<void>) | null>(null);
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [redo, setRedo] = useState<(() => void) | null>(null);
@@ -72,6 +83,23 @@ export default () => {
     false
   );
 
+  const [, setRecentProjects] = useStore<RecentProject[]>(
+    "recent-projects",
+    []
+  );
+
+  const [recentFiles, setRecentFiles] = useStore<string[]>(
+    "recent-files",
+    []
+  );
+  // `useStore` setters change identity whenever the stored value changes, so
+  // keep them in refs to leave `openNewFile` (passed to several children)
+  // referentially stable.
+  const recentFilesRef = useRef(recentFiles);
+  const setRecentFilesRef = useRef(setRecentFiles);
+  recentFilesRef.current = recentFiles;
+  setRecentFilesRef.current = setRecentFiles;
+
   if (!path) {
     throw new Error("Path parameter is required in IDE component");
   }
@@ -97,10 +125,30 @@ export default () => {
   }, [ready, initialized, navigate]);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       if (!store || !storeInitialized || !path) return;
       await store.set("last-opened-project", encodeURIComponent(path!));
+      try {
+        const name = await pathApi.basename(path);
+        if (cancelled) return;
+        // The setter is intentionally not in the dependency list: it changes
+        // identity whenever the stored list changes, which would re-add the
+        // project forever.
+        setRecentProjects((previous) =>
+          addRecentProject(previous, {
+            path,
+            name,
+            openedAt: Date.now(),
+          })
+        );
+      } catch (error) {
+        console.error("Failed to update recent projects:", error);
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [path, store, storeInitialized]);
 
   useEffect(() => {
@@ -182,7 +230,20 @@ export default () => {
       if (!oF.includes(file)) return [file, ...oF];
       return oF;
     });
+    setRecentFilesRef.current(addRecentFile(recentFilesRef.current, file));
   }, []);
+
+  // Quick Open can ask for a specific line (`file:42`, content search hits).
+  const openNewFileAt = useCallback(
+    (file: string, line?: number) => {
+      openNewFile(file);
+      setReveal(line && line > 0 ? { file, line } : null);
+    },
+    [openNewFile]
+  );
+
+  // Stable so the editor effect does not re-run on every render.
+  const clearReveal = useCallback(() => setReveal(null), []);
 
   const selectFile = useCallback(async () => {
     const file = await openFileDialog({ multiple: false, directory: false });
@@ -198,6 +259,8 @@ export default () => {
       newProject: () => navigate("/new"),
       welcomePage: () => navigate("/"),
       openFile: selectFile,
+      quickOpen: () => setQuickOpen(true),
+      deviceSetup: () => setDeviceSetupOpen(true),
       undo: undo ?? (() => {}),
       redo: redo ?? (() => {}),
     });
@@ -206,6 +269,17 @@ export default () => {
   return (
     <div className="ide-container">
       <MenuBar callbacks={callbacks} editor={editor} />
+      <QuickOpen
+        openFolder={path}
+        open={quickOpen}
+        onClose={() => setQuickOpen(false)}
+        onOpenFile={openNewFileAt}
+        recentFiles={recentFiles}
+      />
+      <DeviceWizard
+        open={deviceSetupOpen}
+        onClose={() => setDeviceSetupOpen(false)}
+      />
       <Splitter
         gutterTheme={theme === "dark" ? GutterTheme.Dark : GutterTheme.Light}
         direction={SplitDirection.Horizontal}
@@ -228,8 +302,10 @@ export default () => {
             setOpenFiles={setOpenFiles}
             openNewFile={openNewFile}
             setEditorUpper={setEditor}
+            reveal={reveal}
+            onRevealed={clearReveal}
           />
-          <BottomBar />
+          <BottomBar onOpenFile={openNewFile} />
         </Splitter>
         {screenshot && (
           <div className="screenshot-tile">

@@ -88,9 +88,7 @@ pub async fn login(
             return Ok((email, password));
         }
 
-        window_clone
-            .emit("apple-id-required", ())
-            .expect("Failed to emit apple-id-required event");
+        window_clone.emit("apple-id-required", ()).ok();
 
         let tx1 = tx.clone();
         let handler_id_recieved = window_clone.listen("apple-id-recieved", move |event| {
@@ -110,16 +108,17 @@ pub async fn login(
         match result {
             Ok(msg) if msg.starts_with("apple-id-recieved:") => {
                 let json = &msg["apple-id-recieved:".len()..];
-                let json: Value = serde_json::from_str(json).expect("Failed to parse json");
+                let json: Value = serde_json::from_str(json)
+                    .map_err(|e| format!("Failed to parse Apple ID response: {}", e))?;
                 let apple_id = json
                     .get("appleId")
                     .and_then(Value::as_str)
-                    .expect("Failed to get apple_id from json")
+                    .ok_or("Apple ID response did not contain an email")?
                     .to_string();
                 let password = json
                     .get("applePass")
                     .and_then(Value::as_str)
-                    .expect("Failed to get password from json")
+                    .ok_or("Apple ID response did not contain a password")?
                     .to_string();
                 let save_credentials = json
                     .get("saveCredentials")
@@ -145,7 +144,7 @@ pub async fn login(
                     .ok();
                 Err("Login cancelled by user".to_string())
             }
-            Err(RecvTimeoutError::Timeout) | Err(RecvTimeoutError::Disconnected) | _ => {
+            _ => {
                 window_clone
                     .emit("build-output", "Login cancelled or timed out".to_string())
                     .ok();
@@ -157,9 +156,7 @@ pub async fn login(
     let (tx, rx) = std::sync::mpsc::channel::<String>();
     let window_clone = window.clone();
     let tfa_closure = move || -> Result<String, String> {
-        window_clone
-            .emit("2fa-required", ())
-            .expect("Failed to emit 2fa-required event");
+        window_clone.emit("2fa-required", ()).ok();
 
         let tx = tx.clone();
         let handler_id = window_clone.listen("2fa-recieved", move |event| {

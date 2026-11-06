@@ -16,6 +16,12 @@ export const sourceKitPage = createPreferencePage(
       "Automatically format your code when you save",
       true
     ),
+    createItems.checkbox(
+      "autosave",
+      "Auto save",
+      "Automatically save files a moment after you stop typing",
+      false
+    ),
   ],
   {
     description: "Configure SourceKit-LSP and other language features",

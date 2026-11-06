@@ -24,9 +24,9 @@ export default ({
   const opFailed = operationState.failed.length > 0;
   const done =
     (opFailed &&
-      operationState.started.length ==
+      operationState.started.length ===
         operationState.completed.length + operationState.failed.length) ||
-    operationState.completed.length == operation.steps.length;
+    operationState.completed.length === operation.steps.length;
 
   return (
     <Modal
@@ -50,7 +50,7 @@ export default ({
         <Divider />
         <div className="operation-content">
           {operation.steps.map((step) => {
-            let failed = operationState.failed.find((f) => f.stepId == step.id);
+            let failed = operationState.failed.find((f) => f.stepId === step.id);
             let completed = operationState.completed.includes(step.id);
             let started = operationState.started.includes(step.id);
             let notStarted = !failed && !completed && !started;

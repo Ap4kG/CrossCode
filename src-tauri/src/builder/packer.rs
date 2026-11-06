@@ -56,7 +56,7 @@ pub fn pack(
         .replace("[[product]]", &config.product)
         .replace("[[version_num]]", &config.version_num)
         .replace("[[version_string]]", &config.version_string);
-    fs::write(&app_path.join("Info.plist"), info_content)
+    fs::write(app_path.join("Info.plist"), info_content)
         .map_err(|e| format!("Failed to write Info.plist: {}", e))?;
 
     let resources = project_path.join("Resources");

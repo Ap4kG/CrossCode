@@ -57,6 +57,10 @@ export interface EditorProps {
   setEditorUpper: Dispatch<
     SetStateAction<monaco.editor.IStandaloneCodeEditor | null>
   >;
+  /** Requests the editor to reveal a 1-based line once `file` is focused. */
+  reveal?: { file: string; line: number } | null;
+  /** Called after the reveal request has been handled. */
+  onRevealed?: () => void;
 }
 
 let globalInitialized = false;
@@ -77,6 +81,8 @@ export default ({
   setOpenFiles,
   openNewFile,
   setEditorUpper,
+  reveal,
+  onRevealed,
 }: EditorProps) => {
   const [tabs, setTabs] = useState<
     {
@@ -109,6 +115,8 @@ export default ({
   }>({});
   const [hoveredOnBtn, setHoveredOnBtn] = useState<number | null>(null);
   const [formatOnSave] = useStore<boolean>("sourcekit/format", true);
+  const [autosave] = useStore<boolean>("sourcekit/autosave", false);
+  const autosaveTimer = useRef<number | null>(null);
 
   const { path: filePath } = useParams<"path">();
   const hasAttemptedToReadOpenFiles = useRef<string | null>(null);
@@ -339,7 +347,7 @@ export default ({
     const midpoint = rect.left + rect.width / 2;
     const mouseX = e.clientX;
 
-    let insertIndex;
+    let insertIndex: number;
     if (mouseX < midpoint) {
       insertIndex = index;
     } else {
@@ -437,11 +445,18 @@ export default ({
   };
 
   useEffect(() => {
+    let changeDisposable: { dispose: () => void } | null = null;
+    let cancelled = false;
+
     let switchFile = async () => {
       if (!editor || focused === undefined || !tabs[focused]) return;
       let filePath = tabs[focused]?.file;
       let file = monaco.Uri.file(filePath);
       let modelRef = await monaco.editor.createModelReference(file);
+      if (cancelled) {
+        modelRef.dispose();
+        return;
+      }
       modelRef.object.onDidChangeDirty(() => {
         setUnsavedFiles((files) => {
           if (modelRef.object.isDirty()) {
@@ -460,6 +475,22 @@ export default ({
       });
 
       editor.setModel(modelRef.object.textEditorModel);
+
+      const textModel = modelRef.object.textEditorModel;
+      if (autosave && textModel) {
+        changeDisposable = textModel.onDidChangeContent(() => {
+          if (autosaveTimer.current !== null) {
+            window.clearTimeout(autosaveTimer.current);
+          }
+          autosaveTimer.current = window.setTimeout(() => {
+            autosaveTimer.current = null;
+            if (!modelRef.object.isDirty()) return;
+            modelRef.object.save().catch((error) => {
+              console.error("Auto save failed:", error);
+            });
+          }, 800);
+        });
+      }
 
       if (scrollStates.current && scrollStates.current[filePath]) {
         const [scrollTop, scrollLeft] = scrollStates.current[filePath];
@@ -496,7 +527,49 @@ export default ({
       });
     };
     switchFile();
-  }, [focused, editor, tabs, formatOnSave]);
+
+    return () => {
+      cancelled = true;
+      changeDisposable?.dispose();
+      if (autosaveTimer.current !== null) {
+        window.clearTimeout(autosaveTimer.current);
+        autosaveTimer.current = null;
+      }
+    };
+  }, [focused, editor, tabs, formatOnSave, autosave]);
+
+  // Jumping to a line is handled separately: the effect above must not restart
+  // (it restores the previous scroll position) when a reveal request arrives.
+  useEffect(() => {
+    if (!reveal) return;
+    let cancelled = false;
+    let frame = 0;
+
+    const tick = () => {
+      if (cancelled) return;
+      const index = tabs.findIndex((tab) => tab.file === reveal.file);
+      const model = editor?.getModel() ?? null;
+      if (editor && model && index !== -1 && focused === index) {
+        const lineNumber = Math.min(
+          Math.max(1, reveal.line),
+          model.getLineCount()
+        );
+        editor.setPosition({ lineNumber, column: 1 });
+        editor.revealLineInCenter(lineNumber);
+        editor.focus();
+        onRevealed?.();
+        return;
+      }
+      // The editor switches models asynchronously; retry for about a second.
+      if (frame++ < 60) requestAnimationFrame(tick);
+    };
+
+    requestAnimationFrame(tick);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reveal, editor, focused, tabs, onRevealed]);
 
   return (
     <div className={"editor"}>

@@ -72,7 +72,7 @@ export default function MenuBar({ callbacks, editor }: MenuBarProps) {
         for (const item of group.items) {
           if (item.shortcut) {
             const shortcut = Shortcut.fromString(item.shortcut);
-            let callback;
+            let callback: () => void;
             if (
               "callbackName" in item &&
               typeof item.callbackName === "string"

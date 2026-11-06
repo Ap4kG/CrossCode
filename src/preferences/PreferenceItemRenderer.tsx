@@ -17,6 +17,47 @@ export interface PreferenceItemRendererProps {
   pageName: string;
 }
 
+/**
+ * `info` items may compute their value asynchronously, which needs hooks of
+ * its own - a separate component keeps them out of the conditional branch in
+ * `PreferenceItemRenderer`.
+ */
+function InfoPreferenceItem({ item }: { item: PreferenceItem }) {
+  const [info, setInfo] = useState("");
+
+  useEffect(() => {
+    if (typeof item.defaultValue !== "function") return;
+    let cancelled = false;
+
+    item.defaultValue().then((result: string) => {
+      if (!cancelled) setInfo(result);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [item.defaultValue]);
+
+  return (
+    <FormControl className="prefs-setting">
+      <div className="prefs-setting-row">
+        <Typography level="body-md" className="prefs-label">
+          {item.name}:
+        </Typography>
+        <Typography level="body-md">{info}</Typography>
+      </div>
+      {item.description && (
+        <Typography
+          level="body-xs"
+          sx={{ color: "var(--joy-palette-neutral-400)" }}
+        >
+          {item.description}
+        </Typography>
+      )}
+    </FormControl>
+  );
+}
+
 export default function PreferenceItemRenderer({
   item,
   storeExists,
@@ -41,34 +82,7 @@ export default function PreferenceItemRenderer({
   }, [value]);
 
   if (item.type === "info" && typeof item.defaultValue === "function") {
-    const [info, setInfo] = useState("");
-
-    useEffect(() => {
-      const fetchInfo = async () => {
-        const result = await item.defaultValue();
-        setInfo(result);
-      };
-      fetchInfo();
-    }, [item.defaultValue]);
-
-    return (
-      <FormControl className="prefs-setting">
-        <div className="prefs-setting-row">
-          <Typography level="body-md" className="prefs-label">
-            {item.name}:
-          </Typography>
-          <Typography level="body-md">{info}</Typography>
-        </div>
-        {item.description && (
-          <Typography
-            level="body-xs"
-            sx={{ color: "var(--joy-palette-neutral-400)" }}
-          >
-            {item.description}
-          </Typography>
-        )}
-      </FormControl>
-    );
+    return <InfoPreferenceItem item={item} />;
   }
 
   if (item.type === "custom" && item.customComponent) {

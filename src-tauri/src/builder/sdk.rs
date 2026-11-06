@@ -59,7 +59,7 @@ pub async fn install_sdk_operation(
     let cleanup_result_for_match = cleanup_result
         .as_ref()
         .map(|_| ())
-        .map_err(|e| format!("{}", e));
+        .map_err(|e| e.to_string());
 
     let cleanup_result = op.fail_if_err_map("cleanup", cleanup_result, |e| {
         format!("Failed to remove temp dir: {}", e)
@@ -245,7 +245,7 @@ async fn install_sdk_internal(
     Ok(())
 }
 
-fn sdk(dev: &PathBuf, platform: &str) -> Result<String, String> {
+fn sdk(dev: &Path, platform: &str) -> Result<String, String> {
     let dir = dev.join(format!("Platforms/{}.platform/Developer/SDKs", platform));
     let regex = Regex::new(&format!(r"^{}\d+\.\d+\.sdk$", regex::escape(platform)))
         .map_err(|e| format!("Invalid regex: {}", e))?;
@@ -265,7 +265,7 @@ fn sdk(dev: &PathBuf, platform: &str) -> Result<String, String> {
     Err(format!("Could not find SDK for {}/{}", platform, platform))
 }
 
-async fn install_toolset(output_path: &PathBuf) -> Result<(), String> {
+async fn install_toolset(output_path: &Path) -> Result<(), String> {
     let toolset_dir = output_path.join("toolset");
     fs::create_dir_all(&toolset_dir)
         .map_err(|e| format!("Failed to create toolset directory: {}", e))?;
@@ -300,7 +300,7 @@ async fn install_toolset(output_path: &PathBuf) -> Result<(), String> {
     {
         // I'm guessing this has to be done because I'm extracting the tar from windows into the wsl file system and windows doesn't play nice with permissions, but im too lazy to do this properly
         let wsl_toolset_path =
-            windows_to_wsl_path(&toolset_dir.join("bin").to_string_lossy().to_string())?;
+            windows_to_wsl_path(toolset_dir.join("bin").to_string_lossy().as_ref())?;
         let output = Command::new("wsl")
             .arg("chmod")
             .arg("+x")
@@ -320,7 +320,7 @@ async fn install_toolset(output_path: &PathBuf) -> Result<(), String> {
 
 async fn install_developer(
     app: AppHandle,
-    output_path: &PathBuf,
+    output_path: &Path,
     xcode_path: &str,
     is_dir: bool,
     op: &Operation<'_>,
@@ -358,7 +358,7 @@ async fn install_developer(
                 format!("Failed to read DeveloperStage directory: {}", e)
             })?
             .filter_map(Result::ok)
-            .filter(|entry| entry.path().extension().map_or(false, |ext| ext == "app"))
+            .filter(|entry| entry.path().extension().is_some_and(|ext| ext == "app"))
             .collect::<Vec<_>>();
         if app_dirs.len() != 1 {
             return op.fail(
@@ -412,11 +412,11 @@ async fn install_developer(
             op.fail_if_err("copy_files", windows_to_wsl_path(&sdkmover_path))?;
         let linux_contents_developer = op.fail_if_err(
             "copy_files",
-            windows_to_wsl_path(&contents_developer.to_string_lossy().to_string()),
+            windows_to_wsl_path(contents_developer.to_string_lossy().as_ref()),
         )?;
         let linux_dev = op.fail_if_err(
             "copy_files",
-            windows_to_wsl_path(&dev.to_string_lossy().to_string()),
+            windows_to_wsl_path(dev.to_string_lossy().as_ref()),
         )?;
         let output = op.fail_if_err_map(
             "copy_files",
@@ -475,7 +475,7 @@ async fn install_developer(
             let link_path = dest.join(name);
             op.fail_if_err_map(
                 "copy_files",
-                symlink(target, &link_path.to_string_lossy().to_string()),
+                symlink(target, link_path.to_string_lossy().as_ref()),
                 |e| {
                     format!(
                         "Failed to create symlink {:?} -> {:?}: {}",
@@ -517,13 +517,11 @@ impl Triple {
                 "Developer/Platforms/{}.platform/Developer/usr/lib",
                 platform
             )],
-            swift_resources_path: format!(
-                "Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift"
-            ),
-            swift_static_resources_path: format!(
-                "Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift_static"
-            ),
-            toolset_paths: vec![format!("toolset.json")],
+            swift_resources_path: "Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift"
+                .to_string(),
+            swift_static_resources_path:
+                "Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift_static".to_string(),
+            toolset_paths: vec!["toolset.json".to_string()],
         }
     }
 }
@@ -554,7 +552,7 @@ pub fn unxip<R: Read + Seek + Sized + std::fmt::Debug>(
 
     #[cfg(target_os = "windows")]
     let mut child = Command::new("wsl")
-        .arg(format!("{}", cpio_path))
+        .arg(&cpio_path)
         .arg("-idm")
         .current_dir(output_path)
         .creation_flags(CREATE_NO_WINDOW)

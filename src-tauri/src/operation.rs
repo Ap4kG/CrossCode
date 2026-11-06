@@ -61,7 +61,7 @@ impl<'a> Operation<'a> {
                 },
             )
             .map_err(|_| "Failed to emit status to frontend".to_string())?;
-        return Err(error);
+        Err(error)
     }
 
     pub fn fail_if_err<T>(&self, id: &str, res: Result<T, String>) -> Result<T, String> {

@@ -4,9 +4,7 @@ use crate::windows::{has_wsl, windows_to_wsl_path, wsl_to_windows_path};
 use std::fs;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
-#[cfg(not(target_os = "windows"))]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 #[cfg(target_os = "windows")]
 use std::process::{Command, Stdio};
 
@@ -21,17 +19,10 @@ pub fn symlink(target: &str, link: &str) -> std::io::Result<()> {
     #[cfg(target_os = "windows")]
     {
         if !has_wsl() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "WSL is not available",
-            ));
+            return Err(std::io::Error::other("WSL is not available"));
         }
-        let path = windows_to_wsl_path(link).map_err(|e| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("Path conversion error: {}", e),
-            )
-        })?;
+        let path = windows_to_wsl_path(link)
+            .map_err(|e| std::io::Error::other(format!("Path conversion error: {}", e)))?;
         let output = Command::new("wsl")
             .arg("ln")
             .arg("-s")
@@ -43,15 +34,12 @@ pub fn symlink(target: &str, link: &str) -> std::io::Result<()> {
             .output()
             .expect("failed to execute process");
         if !output.status.success() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "failed to create symlink: {}",
-                    String::from_utf8_lossy(&output.stderr)
-                ),
-            ));
+            return Err(std::io::Error::other(format!(
+                "failed to create symlink: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )));
         }
-        return Ok(());
+        Ok(())
     }
 }
 
@@ -99,7 +87,7 @@ pub fn windows_path(path: &str) -> Result<String, String> {
         if !has_wsl() {
             return Ok(path.to_string());
         }
-        return wsl_to_windows_path(path);
+        wsl_to_windows_path(path)
     }
 }
 
@@ -114,7 +102,7 @@ pub fn linux_path(path: &str) -> Result<String, String> {
         if !has_wsl() {
             return Ok(path.to_string());
         }
-        return windows_to_wsl_path(path);
+        windows_to_wsl_path(path)
     }
 }
 
@@ -133,7 +121,7 @@ pub fn is_linux_dir(path: &str) -> Result<bool, String> {
     let output = Command::new("wsl")
         .arg("test")
         .arg("-d")
-        .arg(&path)
+        .arg(path)
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .expect("failed to execute process");
@@ -165,7 +153,7 @@ pub fn linux_temp_dir() -> Result<PathBuf, String> {
         }
 
         let win_path = wsl_to_windows_path("/tmp")?;
-        return Ok(PathBuf::from(win_path));
+        Ok(PathBuf::from(win_path))
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -185,7 +173,7 @@ pub fn linux_temp_dir() -> Result<PathBuf, String> {
     }
 }
 
-pub fn remove_dir_all(path: &PathBuf) -> Result<(), String> {
+pub fn remove_dir_all(path: &Path) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
         return fs::remove_dir_all(path).map_err(|e| e.to_string());
@@ -195,7 +183,7 @@ pub fn remove_dir_all(path: &PathBuf) -> Result<(), String> {
         if !has_wsl() {
             return Err("WSL is not available".to_string());
         }
-        let path = windows_to_wsl_path(&path.to_string_lossy().to_string())?;
+        let path = windows_to_wsl_path(path.to_string_lossy().as_ref())?;
         let output = Command::new("wsl")
             .arg("rm")
             .arg("-rf")

@@ -1,12 +1,16 @@
 {
   "name": "crosscode",
   "private": true,
-  "version": "0.0.5",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "lint": "biome lint --max-diagnostics=200 ./src ./tests",
+    "lint:fix": "biome lint --write ./src ./tests",
     "tauri": "tauri",
     "bump-patch": "bunx tauri-version --no-git --no-lock patch",
     "bump-minor": "bunx tauri-version --no-git --no-lock minor",
@@ -53,6 +57,7 @@
     "vscode-ws-jsonrpc": "^3.4.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.3.4",
     "@tauri-apps/cli": "^2",
     "@types/react": "^18.2.15",
     "@types/react-dom": "^18.2.7",

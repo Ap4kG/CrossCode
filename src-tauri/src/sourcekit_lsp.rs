@@ -151,7 +151,7 @@ pub async fn start_sourcekit_server(
                     window
                         .emit("lsp-message", message.clone())
                         .unwrap_or_default();
-                    if let Err(_) = from_lsp_tx.send(message) {
+                    if from_lsp_tx.send(message).is_err() {
                         // No receivers, continue
                     }
                 }
@@ -199,7 +199,11 @@ async fn handle_websocket_connections(
                 Ok(message) = from_lsp_rx.recv() => {
                     let mut i = 0;
                     while i < clients.len() {
-                        if let Err(_) = clients[i].send(Message::Text(message.clone().into())).await {
+                        if clients[i]
+                            .send(Message::Text(message.clone().into()))
+                            .await
+                            .is_err()
+                        {
                             let _ = clients.remove(i);
                         } else {
                             i += 1;
@@ -225,7 +229,7 @@ async fn handle_websocket_connections(
                     while let Some(msg) = ws_receiver.next().await {
                         match msg {
                             Ok(Message::Text(text)) => {
-                                if let Err(_) = to_lsp_tx_clone.send(text.to_string()) {
+                                if to_lsp_tx_clone.send(text.to_string()).is_err() {
                                     break;
                                 }
                             }

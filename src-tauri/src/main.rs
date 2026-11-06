@@ -7,7 +7,9 @@ mod templates;
 mod windows;
 #[macro_use]
 mod builder;
+mod git;
 mod operation;
+mod search;
 #[macro_use]
 mod sideloader;
 #[macro_use]
@@ -22,14 +24,16 @@ use builder::swift::{
     build_swift, clean_swift, deploy_swift, get_swiftly_toolchains, get_toolchain_info,
     has_darwin_sdk, validate_toolchain,
 };
+use git::{git_add, git_commit, git_diff, git_file_versions, git_reset, git_status};
 use lsp_utils::{has_limited_ram, validate_project};
+use search::search_project;
 use serde_json::Value;
 use sideloader::{
     apple_commands::{
         delete_app_id, delete_stored_credentials, get_apple_email, get_certificates, list_app_ids,
         reset_anisette, revoke_certificate,
     },
-    device::{is_ddi_mounted, mount_ddi},
+    device::{device_status, is_ddi_mounted, mount_ddi},
     screenshot::take_screenshot,
     sideload::refresh_idevice,
     stdout::{is_streaming_stdout, start_stream_stdout, stop_stream_stdout, StdoutStream},
@@ -73,48 +77,46 @@ fn main() {
         .manage(syslog_stream)
         .manage(stdout_stream)
         .setup(|app| {
-            match app.cli().matches() {
-                Ok(matches) => {
-                    if let Some(arg) = matches.args.get("showMainWindow") {
-                        if arg.value == Value::Bool(true) {
-                            let window = app.get_webview_window("main").unwrap();
-                            window.show().unwrap();
+            if let Ok(matches) = app.cli().matches() {
+                if let Some(arg) = matches.args.get("showMainWindow") {
+                    if arg.value == Value::Bool(true) {
+                        if let Some(window) = app.get_webview_window("main") {
+                            if let Err(e) = window.show() {
+                                eprintln!("Failed to show main window: {}", e);
+                            }
                             window.open_devtools();
                         }
                     }
                 }
-                Err(_) => {}
             }
 
             let store = app.store("preferences.json")?;
 
-            let open_last = if store.has("general/startup") {
-                store.get("general/startup").unwrap().as_str().unwrap() == "open-last"
-            } else {
-                true
-            };
+            let open_last = store
+                .get("general/startup")
+                .and_then(|value| value.as_str().map(|value| value == "open-last"))
+                .unwrap_or(true);
 
             if open_last {
-                if let Some(last_project) = store.get("last-opened-project") {
-                    if last_project.is_string() {
-                        let path = last_project.as_str().unwrap();
+                if let Some(path) = store
+                    .get("last-opened-project")
+                    .and_then(|value| value.as_str().map(|path| path.to_owned()))
+                {
+                    if let Some(window) = app.get_webview_window("main") {
                         let url_str = format!("/ide/{}", path);
-                        app.get_webview_window("main")
-                            .unwrap()
-                            .eval(&format!("window.location.replace('{}')", url_str))?;
+                        window.eval(format!("window.location.replace('{}')", url_str))?;
                     }
                 }
             }
 
             Ok(())
         })
-        .on_window_event(|window, event| match event {
-            tauri::WindowEvent::Destroyed => {
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {
                     window.app_handle().exit(0);
                 }
             }
-            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             is_windows,
@@ -155,6 +157,14 @@ fn main() {
             is_ddi_mounted,
             mount_ddi,
             take_screenshot,
+            git_status,
+            git_diff,
+            git_add,
+            git_reset,
+            git_commit,
+            git_file_versions,
+            search_project,
+            device_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -168,6 +178,9 @@ pub fn emit_error_and_return<T>(window: &tauri::Window, msg: &str) -> Result<T, 
 
 #[tauri::command]
 fn open_devtools(app: tauri::AppHandle) -> Result<(), String> {
-    app.get_webview_window("main").unwrap().open_devtools();
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    window.open_devtools();
     Ok(())
 }

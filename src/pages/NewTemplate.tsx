@@ -13,18 +13,17 @@ export default () => {
   const navigate = useNavigate();
   const params = useParams<"template">();
   const templateId = params.template;
-  if (!templateId) {
-    return <Navigate to="/new" replace />;
-  }
   const template = templates.find((t) => t.id === templateId);
   const { addToast } = useToast();
-  if (!template) return <Navigate to="/new" replace />;
 
-  const [form, setForm] = useState(
+  const [form, setForm] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      Object.entries(template.fields).map(([key]) => [key, ""])
+      Object.keys(template?.fields ?? {}).map((key) => [key, ""])
     )
   );
+
+  // Hooks must run unconditionally, so the redirects happen after them.
+  if (!templateId || !template) return <Navigate to="/new" replace />;
 
   const handleChange = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
