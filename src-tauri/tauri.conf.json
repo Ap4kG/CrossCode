@@ -24,7 +24,7 @@
   "productName": "CrossCode",
   "mainBinaryName": "CrossCode",
   "version": "0.1.0",
-  "identifier": "me.nabdev.crosscode",
+  "identifier": "me.ap4k.crosscode",
   "plugins": {
     "fs": {
       "requireLiteralLeadingDot": false
@@ -37,9 +37,9 @@
       ]
     },
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZFOEM1NUQyOEUzNDc5MTcKUldRWGVUU08wbFdNYmg1MHM0S3p2c2x1OFZKVnN0NXNVSDMvakExMFZnMnczamxIVGdjNGY4Mm4K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzMzNEQkQ1MzA0MDdDNzYKUldSMmZFQXcxZHN6RTJEV1N3emRHWjRiVE9LY3JUbk13ZDNxYUdkUDhwUmZlZ2UzbG1idnBMUkwK",
       "endpoints": [
-        "https://github.com/nab138/CrossCode/releases/latest/download/latest.json"
+        "https://github.com/Ap4kG/CrossCode/releases/latest/download/latest.json"
       ]
     }
   },
