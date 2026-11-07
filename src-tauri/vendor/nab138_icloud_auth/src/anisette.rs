@@ -42,9 +42,9 @@ impl AnisetteData {
         client_info: bool,
         app_info: bool,
     ) -> HashMap<String, String> {
-        if !self.is_valid() {
-            panic!("Invalid data!")
-        }
+        // Do not panic on stale anisette data: a failed refresh used to abort the
+        // whole process (see get_anisette). Stale data is simply sent as-is and
+        // Apple will reject it with a regular error instead of a crash.
         let mut headers = self.base_headers.clone();
         // Apple now blocks the legacy client-info strings that anisette servers still
         // report (macOS 13.1 / Xcode 11). Use the string current sideloaders send;

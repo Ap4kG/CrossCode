@@ -10,21 +10,34 @@
 
 ---
 
-[![Build CrossCode](https://github.com/nab138/CrossCode/actions/workflows/build.yml/badge.svg)](https://github.com/nab138/CrossCode/actions/workflows/build.yml)
+[![Build CrossCode](https://github.com/Ap4kG/CrossCode/actions/workflows/build.yml/badge.svg)](https://github.com/Ap4kG/CrossCode/actions/workflows/build.yml)
 
 iOS Swift development IDE for Windows/Linux. Create, build, and test apps without owning a Mac.
 
 Supports Swift 6.2 and the Swift Package Manager.
 
+> This is a fork of [nab138/CrossCode](https://github.com/nab138/CrossCode) maintained by [Ap4kG](https://github.com/Ap4kG).
+> See [This fork](#this-fork) for what changed and how updates work.
+
 ### Demo
 
 https://github.com/user-attachments/assets/9cbe2b71-d765-46c6-aa25-ef16b539deec
 
+## This fork
+
+- **Beta status.** The project is in beta: it is usable end to end (build, sign, install, run on a real iPhone with a free Apple ID), but expect rough edges.
+- **Own identity.** Bundle identifier `me.ap4k.crosscode`, so it installs alongside the upstream build and keeps its own settings.
+- **Own update channel.** Releases are published here and the updater points at this repository, so upstream releases are ignored.
+- **Apple ID sign-in fixes.**
+  - Apple now rejects the legacy `com.apple.dt.Xcode/...` client info with `503 + HTML` (shown as `PlistError(<html>)`); the fork sends a current client info instead.
+  - The legacy `ani.sidestore.io` anisette server now makes Apple answer `-80045 This action cannot be completed`. The default is `mac-ani.jkcoxson.com`, and the anisette server setting is actually honored now.
+  - A failed anisette refresh no longer panics during sign-in or while waiting for the 2FA code.
+
 ## Installation
 
-CrossCode is currently in alpha. Expect bugs!
+CrossCode is currently in beta. Expect bugs — and please report them to this fork's [issue tracker](https://github.com/Ap4kG/CrossCode/issues).
 
-Download the latest build for your platform from [releases](https://github.com/nab138/CrossCode/releases/latest).
+Download the latest build for your platform from [releases](https://github.com/Ap4kG/CrossCode/releases/latest).
 
 Check out the [Getting Started](https://github.com/nab138/CrossCode/wiki#getting-started) section of the [wiki](https://github.com/nab138/CrossCode/wiki). Also, see [Troubleshooting](https://github.com/nab138/CrossCode/wiki/Troubleshooting) and [FAQ](https://github.com/nab138/CrossCode/wiki/FAQ)
 
@@ -81,6 +94,7 @@ CrossCode is a Tauri 2 application with a React/TypeScript frontend and a Rust b
   - `git.rs` - Git integration used by the bottom panel (status, diffs, staging, commit/amend, before/after file contents).
   - `search.rs` - project-wide content search used by the quick-open palette.
 - `src-tauri/templates/` — starter projects used by the "New Project" flow.
+- `src-tauri/vendor/nab138_icloud_auth/` — patched copy of the Apple authentication crate: it forces a current anisette client info and no longer panics when an anisette refresh fails. Remove it from the `[patch.crates-io]` section once the upstream crate ships the same fixes.
 - `sdkmover/` — helper crate that moves a generated SDK inside WSL.
 
 The editor is Monaco (the VS Code editor core) with the VS Code language/theme/textmate services, so most editor features live in `components/Tiles/Editor.tsx`.

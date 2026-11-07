@@ -214,7 +214,11 @@ impl AppleAccount {
     pub async fn get_anisette(&self) -> AnisetteData {
         let mut locked = self.anisette.lock().await;
         if locked.needs_refresh() {
-            *locked = locked.refresh().await.unwrap();
+            // Keep the previous anisette data if a refresh fails (network hiccup,
+            // anisette server down, ...) instead of panicking mid-login/2FA.
+            if let Ok(fresh) = locked.refresh().await {
+                *locked = fresh;
+            }
         }
         locked.clone()
     }
