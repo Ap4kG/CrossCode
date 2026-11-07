@@ -567,7 +567,10 @@ mod tests {
         git_create_branch(root.clone(), "feature/login".to_string()).unwrap();
         let branches = git_branches(root.clone()).unwrap();
         assert_eq!(
-            branches.iter().find(|branch| branch.is_current).map(|b| b.name.clone()),
+            branches
+                .iter()
+                .find(|branch| branch.is_current)
+                .map(|b| b.name.clone()),
             Some("feature/login".to_string())
         );
 
@@ -580,7 +583,10 @@ mod tests {
 
         let branches = git_branches(root.clone()).unwrap();
         assert_eq!(
-            branches.iter().find(|branch| branch.is_current).map(|b| b.name.clone()),
+            branches
+                .iter()
+                .find(|branch| branch.is_current)
+                .map(|b| b.name.clone()),
             Some(other)
         );
 
@@ -591,7 +597,10 @@ mod tests {
     fn rejects_invalid_branch_names() {
         assert!(validate_branch_name("   ").is_err());
         assert!(validate_branch_name("--force").is_err());
-        assert_eq!(validate_branch_name(" feature/login ").unwrap(), "feature/login");
+        assert_eq!(
+            validate_branch_name(" feature/login ").unwrap(),
+            "feature/login"
+        );
     }
 
     #[test]
