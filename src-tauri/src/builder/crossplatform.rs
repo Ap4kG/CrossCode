@@ -14,7 +14,7 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 pub fn symlink(target: &str, link: &str) -> std::io::Result<()> {
     #[cfg(not(target_os = "windows"))]
     {
-        return std::os::unix::fs::symlink(target, link);
+        std::os::unix::fs::symlink(target, link)
     }
     #[cfg(target_os = "windows")]
     {
@@ -46,7 +46,7 @@ pub fn symlink(target: &str, link: &str) -> std::io::Result<()> {
 pub fn linux_env(key: &str) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
-        return std::env::var(key).map_err(|e| e.to_string());
+        std::env::var(key).map_err(|e| e.to_string())
     }
     #[cfg(target_os = "windows")]
     {
@@ -80,7 +80,7 @@ pub fn linux_env(key: &str) -> Result<String, String> {
 pub fn windows_path(path: &str) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
-        return Ok(path.to_string());
+        Ok(path.to_string())
     }
     #[cfg(target_os = "windows")]
     {
@@ -95,7 +95,7 @@ pub fn windows_path(path: &str) -> Result<String, String> {
 pub fn linux_path(path: &str) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
-        return Ok(path.to_string());
+        Ok(path.to_string())
     }
     #[cfg(target_os = "windows")]
     {
@@ -176,7 +176,7 @@ pub fn linux_temp_dir() -> Result<PathBuf, String> {
 pub fn remove_dir_all(path: &Path) -> Result<(), String> {
     #[cfg(not(target_os = "windows"))]
     {
-        return fs::remove_dir_all(path).map_err(|e| e.to_string());
+        fs::remove_dir_all(path).map_err(|e| e.to_string())
     }
     #[cfg(target_os = "windows")]
     {

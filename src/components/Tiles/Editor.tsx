@@ -38,6 +38,10 @@ import "@codingame/monaco-vscode-theme-defaults-default-extension";
 import { platform } from "@tauri-apps/plugin-os";
 import { TabLike } from "../TabLike";
 import { useStore } from "../../utilities/StoreContext";
+import {
+  DEFAULT_EDITOR_FONT,
+  normalizeEditorFont,
+} from "../../preferences/pages/editor";
 import { useParams } from "react-router";
 import { readTextFile, writeTextFile, readFile } from "@tauri-apps/plugin-fs";
 import {
@@ -173,10 +177,13 @@ export default ({
   const [autosave] = useStore<boolean>("sourcekit/autosave", false);
   const [editorThemePref] = useStore<string>("editor/theme", "auto");
   const [editorFontSize] = useStore<number>("editor/font-size", 13);
-  const [editorFontFamily] = useStore<string>(
+  const [storedFontFamily] = useStore<string>(
     "editor/font-family",
-    "'SF Mono', Menlo, Consolas, 'Courier New', monospace"
+    DEFAULT_EDITOR_FONT
   );
+  // Pre-0.1.5 installs stored the old stack; keep the picker and the editor in
+  // sync by upgrading it on read.
+  const editorFontFamily = normalizeEditorFont(storedFontFamily);
   const [editorLigatures] = useStore<boolean>("editor/ligatures", false);
   const autosaveTimer = useRef<number | null>(null);
   const symbolsTimer = useRef<number | null>(null);

@@ -100,7 +100,7 @@ pub fn wsl_to_windows_path(path: &str) -> Result<String, String> {
 pub fn has_wsl() -> bool {
     #[cfg(not(target_os = "windows"))]
     {
-        return false;
+        false
     }
     #[cfg(target_os = "windows")]
     {

@@ -24,7 +24,10 @@ use builder::swift::{
     build_swift, clean_swift, deploy_swift, get_swiftly_toolchains, get_toolchain_info,
     has_darwin_sdk, validate_toolchain,
 };
-use git::{git_add, git_commit, git_diff, git_file_versions, git_reset, git_status};
+use git::{
+    git_add, git_branches, git_checkout_branch, git_commit, git_create_branch, git_diff,
+    git_discard, git_file_versions, git_reset, git_status,
+};
 use lsp_utils::{has_limited_ram, validate_project};
 use search::search_project;
 use serde_json::Value;
@@ -33,7 +36,9 @@ use sideloader::{
         delete_app_id, delete_stored_credentials, get_apple_email, get_certificates, list_app_ids,
         reset_anisette, revoke_certificate,
     },
-    device::{device_status, is_ddi_mounted, mount_ddi},
+    device::{
+        device_status, install_usbmuxd, is_ddi_mounted, mount_ddi, start_usbmuxd, usbmuxd_status,
+    },
     screenshot::take_screenshot,
     sideload::refresh_idevice,
     stdout::{is_streaming_stdout, start_stream_stdout, stop_stream_stdout, StdoutStream},
@@ -163,8 +168,15 @@ fn main() {
             git_reset,
             git_commit,
             git_file_versions,
+            git_branches,
+            git_checkout_branch,
+            git_create_branch,
+            git_discard,
             search_project,
             device_status,
+            usbmuxd_status,
+            install_usbmuxd,
+            start_usbmuxd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

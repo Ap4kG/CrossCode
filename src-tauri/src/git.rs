@@ -242,6 +242,161 @@ pub fn git_commit(
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GitBranch {
+    /// Fully qualified name as git knows it (`feature/login`, `origin/main`).
+    pub name: String,
+    /// Branch name without the remote prefix, for display and for creating a
+    /// local branch when a remote one is checked out.
+    pub short_name: String,
+    pub is_current: bool,
+    pub is_remote: bool,
+}
+
+/// Lists local branches plus the remote branches that have no local
+/// counterpart, so the UI never offers to create a branch that already exists.
+#[tauri::command]
+pub fn git_branches(project_path: String) -> Result<Vec<GitBranch>, String> {
+    let output = run_git(
+        &project_path,
+        &[
+            "for-each-ref",
+            "--format=%(refname)%09%(refname:short)%09%(HEAD)%09%(symref)",
+            "refs/heads",
+            "refs/remotes",
+        ],
+    )?;
+
+    let mut local: Vec<GitBranch> = Vec::new();
+    let mut remote: Vec<GitBranch> = Vec::new();
+
+    for line in output.lines() {
+        let mut fields = line.split('\t');
+        let Some(reference) = fields.next() else {
+            continue;
+        };
+        let short = fields.next().unwrap_or(reference);
+        let head = fields.next().unwrap_or("");
+        let symref = fields.next().unwrap_or("");
+
+        // `origin/HEAD -> origin/main` is an alias, not something to check out.
+        if !symref.is_empty() {
+            continue;
+        }
+
+        let is_remote = reference.starts_with("refs/remotes/");
+        let short_name = if is_remote {
+            short.split_once('/').map(|(_, rest)| rest).unwrap_or(short)
+        } else {
+            short
+        };
+
+        let branch = GitBranch {
+            name: short.to_string(),
+            short_name: short_name.to_string(),
+            is_current: head == "*",
+            is_remote,
+        };
+
+        if is_remote {
+            remote.push(branch);
+        } else {
+            local.push(branch);
+        }
+    }
+
+    let known: Vec<String> = local.iter().map(|b| b.short_name.clone()).collect();
+    remote.retain(|branch| !known.contains(&branch.short_name));
+
+    local.sort_by(|a, b| a.name.cmp(&b.name));
+    remote.sort_by(|a, b| a.name.cmp(&b.name));
+
+    local.extend(remote);
+    Ok(local)
+}
+
+fn validate_branch_name(name: &str) -> Result<&str, String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err("Branch name cannot be empty".to_string());
+    }
+    // A leading dash would be parsed as a flag by git.
+    if name.starts_with('-') {
+        return Err("Branch name cannot start with '-'".to_string());
+    }
+    Ok(name)
+}
+
+/// Switches to an existing branch. Remote branches are checked out as a new
+/// local branch that tracks them.
+#[tauri::command]
+pub fn git_checkout_branch(
+    project_path: String,
+    name: String,
+    remote: Option<bool>,
+) -> Result<(), String> {
+    let name = validate_branch_name(&name)?;
+    let mut args: Vec<&str> = vec!["switch"];
+
+    if remote.unwrap_or(false) {
+        let short_name = name.split_once('/').map(|(_, rest)| rest).unwrap_or(name);
+        args.extend(["-c", short_name, "--track", name]);
+    } else {
+        args.push(name);
+    }
+
+    run_git(&project_path, &args).map(|_| ())
+}
+
+/// Creates a branch from the current HEAD and switches to it.
+#[tauri::command]
+pub fn git_create_branch(project_path: String, name: String) -> Result<(), String> {
+    let name = validate_branch_name(&name)?;
+    run_git(&project_path, &["switch", "-c", name]).map(|_| ())
+}
+
+/// Throws away uncommitted changes in the given files: tracked files are
+/// restored from the index, untracked ones are deleted.
+#[tauri::command]
+pub fn git_discard(project_path: String, files: Vec<String>) -> Result<(), String> {
+    if files.is_empty() {
+        return Ok(());
+    }
+
+    // `git restore` fails outright on a pathspec it does not know (untracked
+    // files), and `git clean` would leave tracked files alone, so split the
+    // list through the index first.
+    let mut list: Vec<&str> = vec!["ls-files", "--"];
+    list.extend(files.iter().map(String::as_str));
+    let tracked_output = run_git(&project_path, &list)?;
+    let tracked: Vec<String> = tracked_output
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    let untracked: Vec<&String> = files
+        .iter()
+        .filter(|file| !tracked.contains(file))
+        .collect();
+
+    if !tracked.is_empty() {
+        let mut restore: Vec<&str> = vec!["restore", "--worktree", "--"];
+        restore.extend(tracked.iter().map(String::as_str));
+        run_git(&project_path, &restore)?;
+    }
+
+    if !untracked.is_empty() {
+        // `-d` so an untracked directory reported as `dir/` is removed whole.
+        let mut clean: Vec<&str> = vec!["clean", "-fd", "--"];
+        clean.extend(untracked.iter().map(|file| file.as_str()));
+        run_git(&project_path, &clean)?;
+    }
+
+    Ok(())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitFileVersions {
     /// `None` when the file does not exist in the compared revision.
     pub original: Option<String>,
@@ -351,6 +506,9 @@ mod tests {
         run_git(&root, &["init"]).unwrap();
         run_git(&root, &["config", "user.email", "tests@crosscode.invalid"]).unwrap();
         run_git(&root, &["config", "user.name", "CrossCode Tests"]).unwrap();
+        // Keep checkouts byte-for-byte identical to what the test wrote; Git for
+        // Windows otherwise converts LF to CRLF and the assertions trip on it.
+        run_git(&root, &["config", "core.autocrlf", "false"]).unwrap();
 
         dir
     }
@@ -395,6 +553,71 @@ mod tests {
         let dir = temp_repo("empty-message");
         let root = dir.to_string_lossy().to_string();
         assert!(git_commit(root, "   ".to_string(), None).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn creates_and_switches_branches() {
+        let dir = temp_repo("branches");
+        let root = dir.to_string_lossy().to_string();
+        std::fs::write(dir.join("hello.swift"), "let a = 1\n").unwrap();
+        git_add(root.clone(), vec!["hello.swift".to_string()]).unwrap();
+        git_commit(root.clone(), "init".to_string(), None).unwrap();
+
+        git_create_branch(root.clone(), "feature/login".to_string()).unwrap();
+        let branches = git_branches(root.clone()).unwrap();
+        assert_eq!(
+            branches.iter().find(|branch| branch.is_current).map(|b| b.name.clone()),
+            Some("feature/login".to_string())
+        );
+
+        let other = branches
+            .iter()
+            .find(|branch| !branch.is_current && !branch.is_remote)
+            .map(|branch| branch.name.clone())
+            .expect("the default branch should still be listed");
+        git_checkout_branch(root.clone(), other.clone(), None).unwrap();
+
+        let branches = git_branches(root.clone()).unwrap();
+        assert_eq!(
+            branches.iter().find(|branch| branch.is_current).map(|b| b.name.clone()),
+            Some(other)
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rejects_invalid_branch_names() {
+        assert!(validate_branch_name("   ").is_err());
+        assert!(validate_branch_name("--force").is_err());
+        assert_eq!(validate_branch_name(" feature/login ").unwrap(), "feature/login");
+    }
+
+    #[test]
+    fn discards_tracked_and_untracked_changes() {
+        let dir = temp_repo("discard");
+        let root = dir.to_string_lossy().to_string();
+        std::fs::write(dir.join("hello.swift"), "let a = 1\n").unwrap();
+        git_add(root.clone(), vec!["hello.swift".to_string()]).unwrap();
+        git_commit(root.clone(), "init".to_string(), None).unwrap();
+
+        std::fs::write(dir.join("hello.swift"), "let a = 2\n").unwrap();
+        std::fs::write(dir.join("stray.swift"), "let b = 3\n").unwrap();
+
+        git_discard(
+            root.clone(),
+            vec!["hello.swift".to_string(), "stray.swift".to_string()],
+        )
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(dir.join("hello.swift")).unwrap(),
+            "let a = 1\n"
+        );
+        assert!(!dir.join("stray.swift").exists());
+        assert!(git_status(root).unwrap().files.is_empty());
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

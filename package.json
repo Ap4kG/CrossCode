@@ -1,7 +1,7 @@
 {
   "name": "crosscode",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,8 @@
     "tauri": "tauri",
     "bump-patch": "bunx tauri-version --no-git --no-lock patch",
     "bump-minor": "bunx tauri-version --no-git --no-lock minor",
-    "bump-major": "bunx tauri-version --no-git --no-lock major"
+    "bump-major": "bunx tauri-version --no-git --no-lock major",
+    "release-manifest": "bun scripts/latest-json.ts"
   },
   "dependencies": {
     "@codingame/esbuild-import-meta-url-plugin": "^1.0.3",

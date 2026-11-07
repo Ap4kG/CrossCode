@@ -14,6 +14,8 @@ import {
   Modal,
   ModalClose,
   ModalDialog,
+  Option,
+  Select,
   Tooltip,
   Typography,
   useColorScheme,
@@ -21,6 +23,7 @@ import {
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
+import UndoIcon from "@mui/icons-material/Undo";
 import { invoke } from "@tauri-apps/api/core";
 import { platform } from "@tauri-apps/plugin-os";
 import { useToast } from "react-toast-plus";
@@ -44,6 +47,13 @@ type GitStatus = {
 
 type DiffTarget = {
   file: GitFileStatus;
+};
+
+type GitBranch = {
+  name: string;
+  shortName: string;
+  isCurrent: boolean;
+  isRemote: boolean;
 };
 
 export interface GitPanelProps {
@@ -82,12 +92,29 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
   const [busyFile, setBusyFile] = useState<string | null>(null);
   const [busyAll, setBusyAll] = useState(false);
   const [filter, setFilter] = useState("");
+  const [branches, setBranches] = useState<GitBranch[]>([]);
+  const [branchBusy, setBranchBusy] = useState(false);
+  const [newBranchOpen, setNewBranchOpen] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
+  const [discardTarget, setDiscardTarget] = useState<GitFileStatus | null>(null);
+  const [discarding, setDiscarding] = useState(false);
   const { addToast } = useToast();
   const { mode } = useColorScheme();
 
   // Guards against out-of-order responses when refresh is triggered repeatedly
   // (window focus, manual refresh, staging a file).
   const requestRef = useRef(0);
+
+  const refreshBranches = useCallback(async () => {
+    if (!projectPath) return;
+    try {
+      setBranches(await invoke<GitBranch[]>("git_branches", { projectPath }));
+    } catch {
+      // Branch listing is a convenience; a failure here must not hide the
+      // file list that already loaded.
+      setBranches([]);
+    }
+  }, [projectPath]);
 
   const refresh = useCallback(async () => {
     if (!projectPath) return;
@@ -98,6 +125,7 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
       const result = await invoke<GitStatus>("git_status", { projectPath });
       if (requestId !== requestRef.current) return;
       setStatus(result);
+      await refreshBranches();
     } catch (invokeError) {
       if (requestId !== requestRef.current) return;
       setStatus(null);
@@ -105,7 +133,7 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
     } finally {
       if (requestId === requestRef.current) setLoading(false);
     }
-  }, [projectPath]);
+  }, [projectPath, refreshBranches]);
 
   useEffect(() => {
     refresh();
@@ -183,6 +211,69 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
     }
   }, [projectPath, message, amend, refresh, addToast]);
 
+  const switchBranch = useCallback(
+    async (name: string) => {
+      const target = branches.find((branch) => branch.name === name);
+      if (!target || target.isCurrent) return;
+      setBranchBusy(true);
+      try {
+        await invoke("git_checkout_branch", {
+          projectPath,
+          name: target.name,
+          remote: target.isRemote,
+        });
+        addToast.success(`Switched to ${target.shortName}`);
+        await refresh();
+      } catch (switchError) {
+        // git refuses to switch when local changes would be overwritten; its
+        // message says which files are in the way, so show it verbatim.
+        addToast.error(String(switchError));
+      } finally {
+        setBranchBusy(false);
+      }
+    },
+    [branches, projectPath, refresh, addToast]
+  );
+
+  const createBranch = useCallback(async () => {
+    const name = newBranchName.trim();
+    if (!name) return;
+    setBranchBusy(true);
+    try {
+      await invoke("git_create_branch", { projectPath, name });
+      addToast.success(`Created ${name}`);
+      setNewBranchOpen(false);
+      setNewBranchName("");
+      await refresh();
+    } catch (createError) {
+      addToast.error(String(createError));
+    } finally {
+      setBranchBusy(false);
+    }
+  }, [newBranchName, projectPath, refresh, addToast]);
+
+  const discardChanges = useCallback(async () => {
+    if (!discardTarget) return;
+    setDiscarding(true);
+    try {
+      await invoke("git_discard", {
+        projectPath,
+        files: [discardTarget.path],
+      });
+      addToast.success(
+        discardTarget.status === "Untracked"
+          ? `Deleted ${discardTarget.path}`
+          : `Discarded changes in ${discardTarget.path}`
+      );
+      setDiscardTarget(null);
+      await refresh();
+    } catch (discardError) {
+      addToast.error(String(discardError));
+    } finally {
+      setDiscarding(false);
+    }
+  }, [discardTarget, projectPath, refresh, addToast]);
+
   const staged = useMemo(
     () => status?.files.filter((file) => file.staged) ?? [],
     [status]
@@ -254,24 +345,42 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
           {busyFile === file.path ? (
             <CircularProgress size="sm" sx={{ width: 18, height: 18 }} />
           ) : (
-            <Tooltip title={file.staged ? "Unstage" : "Stage"}>
-              <IconButton
-                size="sm"
-                variant="plain"
-                aria-label={file.staged ? "Unstage file" : "Stage file"}
-                sx={{ minWidth: 22, minHeight: 22 }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  changeStage([file.path], file.staged);
-                }}
-              >
-                {file.staged ? (
-                  <RemoveIcon fontSize="small" />
-                ) : (
-                  <AddIcon fontSize="small" />
-                )}
-              </IconButton>
-            </Tooltip>
+            <>
+              {!file.staged && (
+                <Tooltip title="Discard changes">
+                  <IconButton
+                    size="sm"
+                    variant="plain"
+                    aria-label="Discard changes in file"
+                    sx={{ minWidth: 22, minHeight: 22 }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDiscardTarget(file);
+                    }}
+                  >
+                    <UndoIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              )}
+              <Tooltip title={file.staged ? "Unstage" : "Stage"}>
+                <IconButton
+                  size="sm"
+                  variant="plain"
+                  aria-label={file.staged ? "Unstage file" : "Stage file"}
+                  sx={{ minWidth: 22, minHeight: 22 }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    changeStage([file.path], file.staged);
+                  }}
+                >
+                  {file.staged ? (
+                    <RemoveIcon fontSize="small" />
+                  ) : (
+                    <AddIcon fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
+            </>
           )}
         </Box>
       </ListItemButton>
@@ -294,9 +403,58 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
           minHeight: 32,
         }}
       >
-        <Typography level="body-sm" sx={{ fontWeight: "lg" }}>
-          {status?.branch ?? "Git"}
-        </Typography>
+        {status?.isRepo && branches.length > 0 ? (
+          <Select
+            size="sm"
+            variant="plain"
+            value={
+              branches.some((branch) => branch.name === status?.branch)
+                ? (status?.branch ?? "")
+                : ""
+            }
+            placeholder="Detached HEAD"
+            onChange={(_event, value) => {
+              if (value) void switchBranch(value);
+            }}
+            disabled={branchBusy}
+            indicator={
+              branchBusy ? (
+                <CircularProgress size="sm" sx={{ width: 14, height: 14 }} />
+              ) : undefined
+            }
+            slotProps={{
+              button: {
+                sx: { fontWeight: "lg", minHeight: 24, paddingInline: 4 },
+              },
+            }}
+            aria-label="Switch branch"
+          >
+            {branches.map((branch) => (
+              <Option key={branch.name} value={branch.name}>
+                {branch.shortName}
+                {branch.isRemote ? " (remote)" : ""}
+              </Option>
+            ))}
+          </Select>
+        ) : (
+          <Typography level="body-sm" sx={{ fontWeight: "lg" }}>
+            {status?.branch ?? "Git"}
+          </Typography>
+        )}
+        {status?.isRepo && (
+          <Tooltip title="New branch">
+            <IconButton
+              size="sm"
+              variant="plain"
+              aria-label="Create a new branch"
+              sx={{ minWidth: 22, minHeight: 22 }}
+              disabled={branchBusy}
+              onClick={() => setNewBranchOpen(true)}
+            >
+              <AddIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
         {status && status.ahead > 0 && (
           <Chip size="sm" variant="soft" color="neutral">
             ↑{status.ahead}
@@ -490,6 +648,88 @@ export default ({ projectPath, onOpenFile }: GitPanelProps) => {
           </Box>
         </>
       )}
+
+      <Modal open={newBranchOpen} onClose={() => setNewBranchOpen(false)}>
+        <ModalDialog sx={{ width: "min(420px, 92vw)" }}>
+          <ModalClose />
+          <Typography level="h4">New branch</Typography>
+          <Typography level="body-sm" textColor="text.tertiary">
+            Branches from the current commit and switches to it.
+          </Typography>
+          <Input
+            autoFocus
+            size="sm"
+            placeholder="feature/login"
+            value={newBranchName}
+            onChange={(event) => setNewBranchName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") void createBranch();
+            }}
+            aria-label="New branch name"
+          />
+          <Box
+            sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 }}
+          >
+            <Button
+              size="sm"
+              variant="plain"
+              onClick={() => setNewBranchOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="solid"
+              loading={branchBusy}
+              disabled={!newBranchName.trim()}
+              onClick={() => void createBranch()}
+            >
+              Create
+            </Button>
+          </Box>
+        </ModalDialog>
+      </Modal>
+
+      <Modal
+        open={discardTarget !== null}
+        onClose={() => setDiscardTarget(null)}
+      >
+        <ModalDialog sx={{ width: "min(480px, 92vw)" }}>
+          <ModalClose />
+          <Typography level="h4">
+            {discardTarget?.status === "Untracked"
+              ? "Delete file?"
+              : "Discard changes?"}
+          </Typography>
+          <Typography level="body-sm" sx={{ wordBreak: "break-all" }}>
+            {discardTarget?.path}
+          </Typography>
+          <Typography level="body-sm" textColor="text.tertiary">
+            {discardTarget?.status === "Untracked"
+              ? "The file is not tracked by git, so it will be deleted from disk. This cannot be undone."
+              : "Unstaged changes will be replaced with the staged version. This cannot be undone."}
+          </Typography>
+          <Box
+            sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 }}
+          >
+            <Button
+              size="sm"
+              variant="plain"
+              onClick={() => setDiscardTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              color="danger"
+              loading={discarding}
+              onClick={() => void discardChanges()}
+            >
+              {discardTarget?.status === "Untracked" ? "Delete" : "Discard"}
+            </Button>
+          </Box>
+        </ModalDialog>
+      </Modal>
 
       <Modal open={diffTarget !== null} onClose={() => setDiffTarget(null)}>
         <ModalDialog sx={{ width: "min(1100px, 94vw)", maxHeight: "90vh" }}>

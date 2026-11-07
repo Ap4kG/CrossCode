@@ -39,6 +39,41 @@ CrossCode is currently in beta. Expect bugs — and please report them to this f
 
 Download the latest build for your platform from [releases](https://github.com/Ap4kG/CrossCode/releases/latest).
 
+### Linux
+
+The AppImage is the primary Linux build and the only one that can update itself in place, so pick `CrossCode_<version>_amd64.AppImage` if you want the built-in updater to work. `deb` and `rpm` packages are built too, but they have to be upgraded by hand.
+
+1. Install the device daemon and the AppImage runtime:
+
+   ```sh
+   sudo apt install usbmuxd libfuse2t64   # Debian/Ubuntu (libfuse2 on 24.04 and older)
+   sudo dnf install usbmuxd fuse-libs     # Fedora
+   sudo pacman -S usbmuxd fuse2           # Arch
+   ```
+
+2. Start the daemon once, so CrossCode can see a connected iPhone:
+
+   ```sh
+   sudo systemctl enable --now usbmuxd
+   ```
+
+   The welcome screen has a "Device support (usbmuxd)" card that shows whether the daemon is running, installed but stopped, or missing. It can also install the package and start the service for you through the desktop's polkit prompt.
+
+3. Make the AppImage executable and run it:
+
+   ```sh
+   chmod +x CrossCode_<version>_amd64.AppImage
+   ./CrossCode_<version>_amd64.AppImage
+   ```
+
+To build it yourself, install the Tauri v2 packages plus clang for the signing bindings:
+
+```sh
+sudo apt install build-essential libwebkit2gtk-4.1-dev libsoup-3.0-dev \
+  libjavascriptcoregtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+  libssl-dev libxdo-dev patchelf xdg-utils clang libclang-dev
+```
+
 Check out the [Getting Started](https://github.com/nab138/CrossCode/wiki#getting-started) section of the [wiki](https://github.com/nab138/CrossCode/wiki). Also, see [Troubleshooting](https://github.com/nab138/CrossCode/wiki/Troubleshooting) and [FAQ](https://github.com/nab138/CrossCode/wiki/FAQ)
 
 ## Features
@@ -51,7 +86,7 @@ Check out the [Getting Started](https://github.com/nab138/CrossCode/wiki#getting
 - Code editing including error reporting, autocomplete, go to definition, and other language features
 - Xcode-style editor: Xcode Light and Xcode Dark themes, SF Mono / Menlo / Consolas fonts, no minimap, smooth caret, thin overlay scrollbars and rounded tabs. Adjust theme, font and size under Settings → Code Editor
 - Quick open files with `Ctrl+P` (recently opened files first, `file:42` to jump to a line, `#query` to search file contents), draggable editor tabs, and optional auto save
-- Built-in Git panel with branch status, staged/unstaged changes, side-by-side diffs, stage/unstage (single file or all), amend and commit
+- Built-in Git panel with branch status, switching and creating branches, staged/unstaged changes, side-by-side diffs, stage/unstage (single file or all), discard changes, amend and commit
 - Editor status bar (language, Ln/Col, selection, indentation, UTF-8, EOL), bracket-pair colorization, indent guides, folding controls and a symbol popup in the jump bar
 - Find in Project (`Ctrl+Shift+F`) with project-wide replace, a Problems panel fed by SourceKit-LSP, and clickable `file:line:col` errors in the build output
 - Command palette (`Ctrl+Shift+P`), Go to Line (`Ctrl+L`), Go to Symbol (`Ctrl+Shift+O`), Recent Files (`Ctrl+E`), remembered panel sizes and an update banner

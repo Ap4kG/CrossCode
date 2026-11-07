@@ -339,3 +339,126 @@ pub async fn download(url: impl AsRef<str>, dest: &PathBuf) -> Result<(), String
 
     Ok(())
 }
+
+/// Where usbmuxd listens for device connections on Linux.
+#[cfg(target_os = "linux")]
+const USB_MUXD_SOCKETS: [&str; 2] = ["/var/run/usbmuxd", "/run/usbmuxd"];
+
+/// Looks a program up in `PATH`. Returns the absolute path so the same lookup
+/// can be reused for `pkexec`, which wants a real executable path.
+#[cfg(target_os = "linux")]
+fn resolve_command(name: &str) -> Option<std::path::PathBuf> {
+    std::env::var_os("PATH").and_then(|paths| {
+        std::env::split_paths(&paths)
+            .map(|dir| dir.join(name))
+            .find(|candidate| candidate.is_file())
+    })
+}
+
+/// Reports on the usbmuxd daemon, which is what `idevice` talks to.
+///
+/// Windows and macOS ship their own copy as part of the Apple tooling, so the
+/// answer there is always `not-applicable`. On Linux the daemon is a separate
+/// package and has to be running before a device can be enumerated.
+#[cfg(target_os = "linux")]
+fn detect_usbmuxd() -> String {
+    if USB_MUXD_SOCKETS
+        .iter()
+        .any(|socket| std::path::Path::new(socket).exists())
+    {
+        return String::from("running");
+    }
+
+    if resolve_command("usbmuxd").is_some() {
+        String::from("installed")
+    } else {
+        String::from("missing")
+    }
+}
+
+#[tauri::command]
+pub fn usbmuxd_status() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        detect_usbmuxd()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        String::from("not-applicable")
+    }
+}
+
+/// The install command for the detected distribution.
+#[cfg(target_os = "linux")]
+fn usbmuxd_install_command() -> Result<&'static str, String> {
+    if resolve_command("apt-get").is_some() {
+        Ok("DEBIAN_FRONTEND=noninteractive apt-get install -y usbmuxd")
+    } else if resolve_command("dnf").is_some() {
+        Ok("dnf install -y usbmuxd")
+    } else if resolve_command("pacman").is_some() {
+        Ok("pacman -Sy --noconfirm --needed usbmuxd")
+    } else if resolve_command("zypper").is_some() {
+        Ok("zypper --non-interactive install usbmuxd")
+    } else {
+        Err("Unsupported distribution: install the 'usbmuxd' package manually.".to_string())
+    }
+}
+
+/// Runs a shell snippet as root through polkit, which shows the desktop's own
+/// password prompt instead of requiring a terminal.
+#[cfg(target_os = "linux")]
+async fn run_privileged(script: &str) -> Result<String, String> {
+    let pkexec = resolve_command("pkexec").ok_or_else(|| {
+        "polkit (pkexec) is not installed, so CrossCode cannot ask for a password. Run the command in a terminal instead.".to_string()
+    })?;
+    let sh = resolve_command("sh").ok_or_else(|| "sh was not found in PATH".to_string())?;
+
+    let output = tokio::process::Command::new(pkexec)
+        .arg(sh)
+        .arg("-c")
+        .arg(script)
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run pkexec: {}", e))?;
+
+    if output.status.success() {
+        return Ok(String::from_utf8_lossy(&output.stdout).trim().to_string());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(if stderr.is_empty() {
+        "The package manager exited with an error.".to_string()
+    } else {
+        stderr
+    })
+}
+
+/// Installs usbmuxd with the distribution's package manager and enables the
+/// service, so the device shows up without a reboot.
+#[tauri::command]
+pub async fn install_usbmuxd() -> Result<String, String> {
+    #[cfg(target_os = "linux")]
+    {
+        let install = usbmuxd_install_command()?;
+        let script = format!("{} && systemctl enable --now usbmuxd", install);
+        run_privileged(&script).await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err("usbmuxd is only a separate package on Linux.".to_string())
+    }
+}
+
+/// Enables and starts the service when the package is already installed but
+/// the daemon is not running.
+#[tauri::command]
+pub async fn start_usbmuxd() -> Result<String, String> {
+    #[cfg(target_os = "linux")]
+    {
+        run_privileged("systemctl enable --now usbmuxd").await
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err("usbmuxd is only a separate package on Linux.".to_string())
+    }
+}

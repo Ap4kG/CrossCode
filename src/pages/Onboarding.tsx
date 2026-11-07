@@ -14,6 +14,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { useToast } from "react-toast-plus";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { platform } from "@tauri-apps/plugin-os";
 import { SWIFT_VERSION_PREFIX } from "../utilities/constants";
 import CloseIcon from "@mui/icons-material/Close";
 import { useStore } from "../utilities/StoreContext";
@@ -32,6 +33,37 @@ export default () => {
     "recent-projects",
     []
   );
+
+  const isLinux = platform() === "linux";
+  const [usbmuxd, setUsbmuxd] = useState<string | null>(null);
+  const [usbmuxdBusy, setUsbmuxdBusy] = useState(false);
+
+  const checkUsbmuxd = async () => {
+    if (!isLinux) return;
+    try {
+      setUsbmuxd(await invoke<string>("usbmuxd_status"));
+    } catch {
+      setUsbmuxd("unknown");
+    }
+  };
+
+  // Installs the package or starts the daemon through polkit, then re-checks.
+  const fixUsbmuxd = async () => {
+    setUsbmuxdBusy(true);
+    try {
+      await invoke(usbmuxd === "missing" ? "install_usbmuxd" : "start_usbmuxd");
+      await checkUsbmuxd();
+    } catch (error) {
+      addToast.error(String(error));
+    } finally {
+      setUsbmuxdBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    void checkUsbmuxd();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLinux]);
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -321,6 +353,83 @@ export default () => {
                     }}
                   >
                     Relaunch CrossCode (post-installation)
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+        {isLinux && (
+          <Card variant="soft">
+            <Typography level="h3">Device support (usbmuxd)</Typography>
+            <Typography level="body-sm">
+              CrossCode reaches your iPhone through the usbmuxd daemon. On Linux
+              it is a separate package that has to be installed and running;
+              Windows and macOS ship their own copy with the Apple tooling.
+            </Typography>
+            <Divider />
+            <CardContent>
+              <Typography
+                level="body-md"
+                sx={{
+                  alignItems: "center",
+                  display: "flex",
+                  gap: "var(--padding-xs)",
+                }}
+                color={
+                  usbmuxd === "running" || usbmuxd === null ? undefined : "danger"
+                }
+              >
+                {usbmuxd === null ? (
+                  "Checking for usbmuxd..."
+                ) : usbmuxd === "running" ? (
+                  "usbmuxd is running. Connect your iPhone over USB and trust this computer."
+                ) : usbmuxd === "installed" ? (
+                  <>
+                    <WarningIcon />{" "}
+                    <div>
+                      usbmuxd is installed but not running. CrossCode can start
+                      it for you, or run{" "}
+                      <code>sudo systemctl enable --now usbmuxd</code>.
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <ErrorIcon />{" "}
+                    <div>
+                      usbmuxd is not installed, so CrossCode cannot see a
+                      connected iPhone. CrossCode can install it for you (you
+                      will be asked for your password), or run{" "}
+                      <code>sudo apt install usbmuxd</code> yourself.
+                    </div>
+                  </>
+                )}
+              </Typography>
+              {usbmuxd !== "running" && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "var(--padding-md)",
+                    marginTop: "var(--padding-xs)",
+                  }}
+                >
+                  {(usbmuxd === "missing" || usbmuxd === "installed") && (
+                    <Button
+                      variant="solid"
+                      loading={usbmuxdBusy}
+                      onClick={() => void fixUsbmuxd()}
+                    >
+                      {usbmuxd === "missing"
+                        ? "Install usbmuxd"
+                        : "Start usbmuxd"}
+                    </Button>
+                  )}
+                  <Button
+                    variant="soft"
+                    disabled={usbmuxdBusy}
+                    onClick={() => void checkUsbmuxd()}
+                  >
+                    Check again
                   </Button>
                 </div>
               )}

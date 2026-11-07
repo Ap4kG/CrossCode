@@ -1,15 +1,41 @@
 import { createItems, createPreferencePage } from "../helpers";
 
+// Every stack ends with a generic `monospace` so that a missing font can never
+// leave the editor without one. The DejaVu/Liberation entries are what Linux
+// distributions actually ship: SF Mono, Menlo and Consolas do not exist there.
+const LEGACY_DEFAULT_FONT =
+  "'SF Mono', Menlo, Consolas, 'Courier New', monospace";
+
+export const DEFAULT_EDITOR_FONT =
+  "'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Ubuntu Mono', 'Courier New', monospace";
+
+/** Upgrades the pre-0.1.5 default to the stack that also covers Linux. */
+export function normalizeEditorFont(value: string): string {
+  return value === LEGACY_DEFAULT_FONT ? DEFAULT_EDITOR_FONT : value;
+}
+
 const fonts = [
   {
-    label: "SF Mono (falls back to Menlo / Consolas)",
-    value: "'SF Mono', Menlo, Consolas, 'Courier New', monospace",
+    label: "SF Mono (falls back per platform)",
+    value: DEFAULT_EDITOR_FONT,
   },
-  { label: "Menlo", value: "Menlo, monospace" },
-  { label: "Consolas", value: "Consolas, 'Courier New', monospace" },
-  { label: "Cascadia Code", value: "'Cascadia Code', Consolas, monospace" },
-  { label: "JetBrains Mono", value: "'JetBrains Mono', Consolas, monospace" },
-  { label: "System monospace", value: "ui-monospace, monospace" },
+  { label: "Menlo", value: "Menlo, 'DejaVu Sans Mono', monospace" },
+  {
+    label: "Consolas",
+    value: "Consolas, 'Liberation Mono', 'Courier New', monospace",
+  },
+  {
+    label: "Cascadia Code",
+    value: "'Cascadia Code', Consolas, 'DejaVu Sans Mono', monospace",
+  },
+  {
+    label: "JetBrains Mono",
+    value: "'JetBrains Mono', Consolas, 'DejaVu Sans Mono', monospace",
+  },
+  {
+    label: "System monospace",
+    value: "ui-monospace, 'DejaVu Sans Mono', 'Liberation Mono', monospace",
+  },
 ];
 
 export const editorPage = createPreferencePage(
