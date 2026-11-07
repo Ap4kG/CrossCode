@@ -180,7 +180,7 @@ pub async fn login(
     let config = AnisetteConfiguration::default();
     let config =
         config.set_configuration_path(handle.path().app_config_dir().map_err(|e| e.to_string())?);
-    let config = config.set_anisette_url(format!("https://{}", anisette_server));
+    let config = config.set_anisette_url_v3(format!("https://{}", anisette_server));
     window
         .emit("build-output", "Logging in...")
         .map_err(|e| e.to_string())?;

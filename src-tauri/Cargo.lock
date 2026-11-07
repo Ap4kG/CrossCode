@@ -1124,7 +1124,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crosscode"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "dircpy",
  "fix-path-env",
@@ -3520,8 +3520,6 @@ dependencies = [
 [[package]]
 name = "nab138_icloud_auth"
 version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2707d665f2ceb5dfc1baf632fd708c6ffba2596f9e63fea054367d1b0e3b7317"
 dependencies = [
  "aes",
  "aes-gcm",
