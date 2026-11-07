@@ -5,11 +5,13 @@ export interface TileProps {
   title?: string;
   children: React.ReactNode;
   className?: string;
+  /** When false the tile content is flush with the tile edges. */
+  padded?: boolean;
 }
 
-export default ({ title, children, className }: TileProps) => {
+export default ({ title, children, className, padded = true }: TileProps) => {
   return (
-    <div className={"tile"}>
+    <div className={padded ? "tile" : "tile tile-unpadded"}>
       {title != null && (
         <Typography level="body-xs" className={"tile-title"}>
           {title}

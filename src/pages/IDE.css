@@ -4,8 +4,28 @@
   flex-direction: column;
 }
 
+/* Xcode-style "update available" strip under the menu bar. */
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--padding-sm);
+  flex-shrink: 0;
+  padding: 3px var(--padding-md);
+  background: var(--joy-palette-success-softBg, rgba(46, 160, 67, 0.12));
+  border-bottom: 1px solid var(--joy-palette-success-200, rgba(46, 160, 67, 0.3));
+  color: var(--joy-palette-text-primary);
+  font-size: 12px;
+}
+
+.update-banner-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--padding-xs);
+}
+
 .file-explorer-tile {
-  padding-right: 0.5rem;
+  padding-right: 0;
 }
 
 .screenshot-tile {

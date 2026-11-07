@@ -1,4 +1,196 @@
+/* Xcode's Project Navigator: light gray sidebar, 24px rows, small disclosure
+   chevrons, colored type icons and a blue accent selection. */
 .file-explorer {
-  overflow-y: auto;
+  --fe-bg: #f2f2f4;
+  --fe-fg: #1d1d1f;
+  --fe-muted: #6e6e73;
+  --fe-hover: #e5e5e9;
+  --fe-selected: #0a84ff;
+  --fe-selected-fg: #ffffff;
+  --fe-chevron: #86868b;
+  --fe-border: #dcdce0;
+  --fe-field-bg: #e7e7ea;
+  --fe-field-fg: #1d1d1f;
+
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--fe-bg);
+  color: var(--fe-fg);
+  font-size: 12.5px;
+  line-height: 1.2;
+  border-radius: 6px;
+}
+
+html[data-joy-color-scheme="dark"] .file-explorer {
+  --fe-bg: #242428;
+  --fe-fg: #e8e8ed;
+  --fe-muted: #98989f;
+  --fe-hover: #303036;
+  --fe-selected: #0a84ff;
+  --fe-selected-fg: #ffffff;
+  --fe-chevron: #8e8e93;
+  --fe-border: #34343a;
+  --fe-field-bg: #34343a;
+  --fe-field-fg: #e8e8ed;
+}
+
+/* Filter field, like the search field at the top of Xcode's navigator. */
+.fe-filter {
+  flex: 0 0 auto;
+  padding: 8px 10px 6px;
+}
+
+.fe-filter-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--fe-field-bg);
+  color: var(--fe-muted);
+}
+
+.fe-search-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.fe-filter-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--fe-field-fg);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 0;
+}
+
+.fe-filter-input::placeholder {
+  color: var(--fe-muted);
+}
+
+.fe-tree {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 1px 0 8px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fe-fg) 22%, transparent)
+    transparent;
+}
+
+.fe-tree::-webkit-scrollbar {
+  width: 10px;
+}
+
+.fe-tree::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fe-fg) 20%, transparent);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
+}
+
+.fe-tree::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fe-fg) 32%, transparent);
+  background-clip: content-box;
+}
+
+.fe-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  box-sizing: border-box;
+  margin: 0 6px;
+  padding-right: 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  outline: none;
+}
+
+.fe-row:hover {
+  background: var(--fe-hover);
+}
+
+.fe-row:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--fe-selected);
+}
+
+.fe-row.is-selected,
+.fe-row.is-selected:hover {
+  background: var(--fe-selected);
+  color: var(--fe-selected-fg);
+}
+
+.fe-row.is-selected .fe-row-path {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.fe-chevron {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  color: var(--fe-chevron);
+  transition: transform 110ms ease;
+}
+
+.file-explorer .fe-row:hover .fe-chevron {
+  color: var(--fe-fg);
+}
+
+.fe-row.is-selected .fe-chevron {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.fe-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.fe-chevron-spacer {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+}
+
+.fe-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.fe-icon-swift {
+  width: 13px;
+  height: 13px;
+  margin: 0 1px;
+}
+
+.fe-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fe-row-path {
+  margin-left: 6px;
+  color: var(--fe-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
+.fe-empty {
+  padding: 10px 12px;
+  color: var(--fe-muted);
+  font-size: 12px;
 }

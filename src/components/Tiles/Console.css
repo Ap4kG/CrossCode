@@ -14,3 +14,14 @@
   scrollbar-color: #888 #000;
   box-sizing: border-box;
 }
+
+/* Compiler diagnostics open the file at the reported line. */
+.console-line.is-diagnostic {
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.console-line.is-diagnostic:hover {
+  background-color: rgba(127, 127, 127, 0.18);
+  text-decoration: underline;
+}

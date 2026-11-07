@@ -49,8 +49,12 @@ Check out the [Getting Started](https://github.com/nab138/CrossCode/wiki#getting
 - Install apps on device
 - Create projects from templates
 - Code editing including error reporting, autocomplete, go to definition, and other language features
+- Xcode-style editor: Xcode Light and Xcode Dark themes, SF Mono / Menlo / Consolas fonts, no minimap, smooth caret, thin overlay scrollbars and rounded tabs. Adjust theme, font and size under Settings → Code Editor
 - Quick open files with `Ctrl+P` (recently opened files first, `file:42` to jump to a line, `#query` to search file contents), draggable editor tabs, and optional auto save
 - Built-in Git panel with branch status, staged/unstaged changes, side-by-side diffs, stage/unstage (single file or all), amend and commit
+- Editor status bar (language, Ln/Col, selection, indentation, UTF-8, EOL), bracket-pair colorization, indent guides, folding controls and a symbol popup in the jump bar
+- Find in Project (`Ctrl+Shift+F`) with project-wide replace, a Problems panel fed by SourceKit-LSP, and clickable `file:line:col` errors in the build output
+- Command palette (`Ctrl+Shift+P`), Go to Line (`Ctrl+L`), Go to Symbol (`Ctrl+Shift+O`), Recent Files (`Ctrl+E`), remembered panel sizes and an update banner
 - Device setup check: verifies the USB connection, the developer disk image and iOS 16+ Developer Mode, and mounts the image for you
 - Recent projects on the welcome screen
 - Light/dark mode and other customizations

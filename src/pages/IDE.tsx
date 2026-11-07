@@ -1,7 +1,14 @@
 import Splitter, { GutterTheme, SplitDirection } from "@devbookhq/splitter";
 import Tile from "../components/Tiles/Tile";
 import FileExplorer from "../components/Tiles/FileExplorer";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Editor from "../components/Tiles/Editor";
 import MenuBar from "../components/Menu/MenuBar";
 import "./IDE.css";
@@ -14,6 +21,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   Button,
   Divider,
+  Input,
   Modal,
   ModalClose,
   ModalDialog,
@@ -26,7 +34,7 @@ import BottomBar from "../components/Tiles/BottomBar";
 import { open as openFileDialog, save } from "@tauri-apps/plugin-dialog";
 import { IStandaloneCodeEditor } from "@codingame/monaco-vscode-api/vscode/vs/editor/standalone/browser/standaloneCodeEditor";
 import { DARWIN_SDK_VERSION } from "../utilities/constants";
-import { writeFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import QuickOpen from "../components/QuickOpen";
 import DeviceWizard from "../components/DeviceWizard";
 import { path as pathApi } from "@tauri-apps/api";
@@ -35,6 +43,12 @@ import {
   RecentProject,
 } from "../utilities/recentProjects";
 import { addRecentFile } from "../utilities/recentFiles";
+import QuickPick, { QuickPickItem } from "../components/QuickPick";
+import ProjectSearch from "../components/ProjectSearch";
+import UpdateBanner from "../components/UpdateBanner";
+import { extractSymbols, symbolGlyph } from "../utilities/symbols";
+import { basename as pathBasename, joinPath } from "../utilities/paths";
+import { nativePath, nativePathSync } from "../utilities/nativePath";
 
 type ProjectValidation =
   | "Valid"
@@ -45,10 +59,17 @@ type ProjectValidation =
 
 let autoStartedLsp = "";
 
+/** Path identity across Windows (`C:\x`) and WSL (`/mnt/c/x`) forms. */
+function comparableFilePath(file: string): string {
+  return nativePathSync(file).replace(/\\/g, "/").toLowerCase();
+}
+
 export default () => {
   const { storeInitialized, store } = useContext(StoreContext);
   const [openFile, setOpenFile] = useState<string | null>(null);
   const [openFiles, setOpenFiles] = useState<string[]>([]);
+  const openFilesRef = useRef(openFiles);
+  openFilesRef.current = openFiles;
   const [quickOpen, setQuickOpen] = useState(false);
   const [deviceSetupOpen, setDeviceSetupOpen] = useState(false);
   const [reveal, setReveal] = useState<{ file: string; line: number } | null>(
@@ -58,6 +79,16 @@ export default () => {
   const [undo, setUndo] = useState<(() => void) | null>(null);
   const [redo, setRedo] = useState<(() => void) | null>(null);
   const [theme] = useStore<"light" | "dark">("appearance/theme", "dark");
+  const [mainSizes, setMainSizes] = useStore<number[]>("layout/main-sizes", []);
+  const [verticalSizes, setVerticalSizes] = useStore<number[]>(
+    "layout/vertical-sizes",
+    []
+  );
+  const [projectSearchOpen, setProjectSearchOpen] = useState(false);
+  const [goToLineOpen, setGoToLineOpen] = useState(false);
+  const [symbolsPickerOpen, setSymbolsPickerOpen] = useState(false);
+  const [recentPickerOpen, setRecentPickerOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const { path } = useParams<"path">();
   const {
     openFolderDialog,
@@ -234,10 +265,17 @@ export default () => {
   }, []);
 
   // Quick Open can ask for a specific line (`file:42`, content search hits).
+  // Tools report paths in different shapes (`C:\...` vs `/mnt/c/...`), so reuse
+  // an already-open tab when it points at the same file.
   const openNewFileAt = useCallback(
     (file: string, line?: number) => {
-      openNewFile(file);
-      setReveal(line && line > 0 ? { file, line } : null);
+      const wanted = comparableFilePath(file);
+      const existing = openFilesRef.current.find(
+        (open) => comparableFilePath(open) === wanted
+      );
+      const target = existing ?? file;
+      openNewFile(target);
+      setReveal(line && line > 0 ? { file: target, line } : null);
     },
     [openNewFile]
   );
@@ -252,6 +290,170 @@ export default () => {
     }
   }, [openNewFile]);
 
+  const triggerFind = useCallback(
+    (action: string) => {
+      if (!editor) return;
+      editor.trigger("menu", action, null);
+      editor.focus();
+    },
+    [editor]
+  );
+
+  // Reads crosscode.toml, increments version_num and writes it back. The editor
+  // reloads the file through the same event "Replace in Project" uses.
+  const bumpBuild = useCallback(async () => {
+    if (!path) return;
+    try {
+      const file = joinPath(path, "crosscode.toml");
+      const native = await nativePath(file);
+      const text = await readTextFile(native);
+      const pattern = /(^[ \t]*version_num[ \t]*=[ \t]*")(\d+)(")/m;
+      const match = pattern.exec(text);
+      if (!match) {
+        addToast.error("crosscode.toml has no numeric version_num to bump.");
+        return;
+      }
+
+      const next = String(Number(match[2]) + 1);
+      await writeTextFile(native, text.replace(pattern, `$1${next}$3`));
+      addToast.success(`Build number bumped to ${next}`);
+      window.dispatchEvent(
+        new CustomEvent("crosscode:files-changed", { detail: [file] })
+      );
+    } catch (error) {
+      addToast.error("Failed to bump the build number: " + error);
+    }
+    // `addToast` gets a new identity on every render (react-toast-plus builds
+    // the helpers from scratch), so it must not be a dependency here: that
+    // would recreate the callback forever and loop the menu-callbacks effect.
+  }, [path]);
+
+  const maxLine = editor?.getModel()?.getLineCount() ?? 0;
+
+  const symbolItems = useMemo<QuickPickItem[]>(() => {
+    const model = editor?.getModel();
+    if (!openFile || !model) return [];
+    return extractSymbols(openFile, model.getValue()).map((symbol, index) => ({
+      key: `${symbol.line}:${index}`,
+      label: symbol.name,
+      glyph: symbolGlyph(symbol.kind),
+      detail: `${symbol.kind} · line ${symbol.line}`,
+      onSelect: () => openNewFileAt(openFile, symbol.line),
+    }));
+    // `symbolsPickerOpen` refreshes the list each time the picker opens.
+  }, [editor, openFile, openNewFileAt, symbolsPickerOpen]);
+
+  const recentItems = useMemo<QuickPickItem[]>(
+    () =>
+      recentFiles
+        .filter((file) => file !== openFile)
+        .slice(0, 100)
+        .map((file) => ({
+          key: file,
+          label: pathBasename(file),
+          detail: file,
+          onSelect: () => openNewFile(file),
+        })),
+    [recentFiles, openFile, openNewFile]
+  );
+
+  const paletteItems = useMemo<QuickPickItem[]>(
+    () => [
+      {
+        key: "quickOpen",
+        label: "Go to File…",
+        glyph: "⌘",
+        detail: "Ctrl+P",
+        onSelect: () => setQuickOpen(true),
+      },
+      {
+        key: "findInProject",
+        label: "Find in Project…",
+        glyph: "⌕",
+        detail: "Ctrl+Shift+F",
+        onSelect: () => setProjectSearchOpen(true),
+      },
+      {
+        key: "goToLine",
+        label: "Go to Line…",
+        glyph: "↦",
+        detail: "Ctrl+L",
+        onSelect: () => setGoToLineOpen(true),
+      },
+      {
+        key: "goToSymbol",
+        label: "Go to Symbol…",
+        glyph: "◇",
+        detail: "Ctrl+Shift+O",
+        onSelect: () => setSymbolsPickerOpen(true),
+      },
+      {
+        key: "recentFiles",
+        label: "Open Recent File…",
+        glyph: "↺",
+        detail: "Ctrl+E",
+        onSelect: () => setRecentPickerOpen(true),
+      },
+      {
+        key: "find",
+        label: "Find in Current File…",
+        glyph: "⌕",
+        detail: "Ctrl+F",
+        onSelect: () => triggerFind("actions.find"),
+      },
+      {
+        key: "replace",
+        label: "Replace in Current File…",
+        glyph: "⇄",
+        detail: "Ctrl+H",
+        onSelect: () =>
+          triggerFind("editor.action.startFindReplaceAction"),
+      },
+      {
+        key: "save",
+        label: "Save File",
+        glyph: "⤓",
+        detail: "Ctrl+S",
+        onSelect: () => {
+          void saveFile?.();
+        },
+      },
+      {
+        key: "openFile",
+        label: "Open File…",
+        glyph: "⌗",
+        detail: "Ctrl+O",
+        onSelect: () => {
+          void selectFile();
+        },
+      },
+      {
+        key: "openFolder",
+        label: "Open Folder…",
+        glyph: "⌂",
+        onSelect: () => {
+          void openFolderDialog();
+        },
+      },
+      {
+        key: "bumpBuild",
+        label: "Bump Build Number",
+        glyph: "⇧",
+        detail: "crosscode.toml",
+        onSelect: () => {
+          void bumpBuild();
+        },
+      },
+    ],
+    [
+      saveFile,
+      selectFile,
+      openFolderDialog,
+      bumpBuild,
+      triggerFind,
+    ]
+  );
+
   useEffect(() => {
     setCallbacks({
       save: saveFile ?? (async () => {}),
@@ -263,18 +465,86 @@ export default () => {
       deviceSetup: () => setDeviceSetupOpen(true),
       undo: undo ?? (() => {}),
       redo: redo ?? (() => {}),
+      find: () => triggerFind("actions.find"),
+      replace: () => triggerFind("editor.action.startFindReplaceAction"),
+      findInProject: () => setProjectSearchOpen(true),
+      goToLine: () => setGoToLineOpen(true),
+      goToSymbol: () => setSymbolsPickerOpen(true),
+      recentFiles: () => setRecentPickerOpen(true),
+      commandPalette: () => setCommandPaletteOpen(true),
+      bumpBuild,
     });
-  }, [saveFile, openFolderDialog, navigate, selectFile, undo, redo]);
+  }, [
+    saveFile,
+    openFolderDialog,
+    navigate,
+    selectFile,
+    undo,
+    redo,
+    triggerFind,
+    bumpBuild,
+  ]);
+
+  const mainPaneCount = screenshot ? 3 : 2;
+  const initialMainSizes =
+    mainSizes.length === mainPaneCount
+      ? mainSizes
+      : screenshot
+        ? [20, 50, 30]
+        : [20, 80];
+  const initialVerticalSizes =
+    verticalSizes.length === 2 ? verticalSizes : [70, 30];
 
   return (
     <div className="ide-container">
       <MenuBar callbacks={callbacks} editor={editor} />
+      <UpdateBanner />
       <QuickOpen
         openFolder={path}
         open={quickOpen}
         onClose={() => setQuickOpen(false)}
         onOpenFile={openNewFileAt}
         recentFiles={recentFiles}
+      />
+      <ProjectSearch
+        open={projectSearchOpen}
+        projectPath={path}
+        onClose={() => setProjectSearchOpen(false)}
+        onOpenFile={openNewFileAt}
+      />
+      <QuickPick
+        open={symbolsPickerOpen}
+        title="Go to Symbol"
+        placeholder="Filter symbols in this file…"
+        items={symbolItems}
+        onClose={() => setSymbolsPickerOpen(false)}
+        emptyLabel="No symbols found in this file."
+        footer={`${symbolItems.length} symbols`}
+      />
+      <QuickPick
+        open={recentPickerOpen}
+        title="Recent Files"
+        placeholder="Filter recent files…"
+        items={recentItems}
+        onClose={() => setRecentPickerOpen(false)}
+        emptyLabel="No recent files yet."
+        footer={`${recentItems.length} files`}
+      />
+      <QuickPick
+        open={commandPaletteOpen}
+        title="Command Palette"
+        placeholder="Type a command…"
+        items={paletteItems}
+        onClose={() => setCommandPaletteOpen(false)}
+        footer={`${paletteItems.length} commands`}
+      />
+      <GoToLineDialog
+        open={goToLineOpen}
+        maxLine={maxLine}
+        onClose={() => setGoToLineOpen(false)}
+        onGo={(line) => {
+          if (openFile) openNewFileAt(openFile, line);
+        }}
       />
       <DeviceWizard
         open={deviceSetupOpen}
@@ -283,15 +553,25 @@ export default () => {
       <Splitter
         gutterTheme={theme === "dark" ? GutterTheme.Dark : GutterTheme.Light}
         direction={SplitDirection.Horizontal}
-        initialSizes={screenshot ? [20, 50, 30] : [20, 80]}
+        initialSizes={initialMainSizes}
+        onResizeFinished={(_, sizes) =>
+          setMainSizes(sizes.map((size) => Math.round(size * 100) / 100))
+        }
       >
-        <Tile className="file-explorer-tile">
-          <FileExplorer openFolder={path} setOpenFile={openNewFile} />
+        <Tile className="file-explorer-tile" padded={false}>
+          <FileExplorer
+            openFolder={path}
+            setOpenFile={openNewFile}
+            activeFile={openFile}
+          />
         </Tile>
         <Splitter
           gutterTheme={theme === "dark" ? GutterTheme.Dark : GutterTheme.Light}
           direction={SplitDirection.Vertical}
-          initialSizes={[70, 30]}
+          initialSizes={initialVerticalSizes}
+          onResizeFinished={(_, sizes) =>
+            setVerticalSizes(sizes.map((size) => Math.round(size * 100) / 100))
+          }
         >
           <Editor
             openFiles={openFiles}
@@ -305,7 +585,7 @@ export default () => {
             reveal={reveal}
             onRevealed={clearReveal}
           />
-          <BottomBar onOpenFile={openNewFile} />
+          <BottomBar onOpenFile={openNewFile} onOpenFileAt={openNewFileAt} />
         </Splitter>
         {screenshot && (
           <div className="screenshot-tile">
@@ -528,4 +808,65 @@ function getValidationMsg(validation: ProjectValidation): string {
     default:
       return "";
   }
+}
+
+function GoToLineDialog({
+  open,
+  maxLine,
+  onClose,
+  onGo,
+}: {
+  open: boolean;
+  maxLine: number;
+  onClose: () => void;
+  onGo: (line: number) => void;
+}) {
+  const [value, setValue] = useState("");
+
+  useEffect(() => {
+    if (open) setValue("");
+  }, [open]);
+
+  const parsed = Number(value);
+  const valid =
+    value.trim() !== "" &&
+    Number.isFinite(parsed) &&
+    parsed >= 1 &&
+    parsed <= maxLine;
+
+  const submit = () => {
+    if (!valid) return;
+    onClose();
+    onGo(Math.round(parsed));
+  };
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <ModalDialog aria-label="Go to Line" sx={{ width: 340 }}>
+        <Typography level="h4">Go to Line</Typography>
+        <Input
+          autoFocus
+          value={value}
+          placeholder={maxLine > 0 ? `1 – ${maxLine}` : "No file open"}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              submit();
+            } else if (event.key === "Escape") {
+              onClose();
+            }
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <Button variant="plain" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!valid} onClick={submit}>
+            Go
+          </Button>
+        </div>
+      </ModalDialog>
+    </Modal>
+  );
 }

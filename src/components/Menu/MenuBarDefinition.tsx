@@ -75,6 +75,58 @@ export default [
     label: "Edit",
     items: [
       {
+        label: "Find",
+        items: [
+          {
+            name: "Find...",
+            shortcut: "Ctrl+F",
+            ignoreShortcutInMonaco: true,
+            callbackName: "find",
+          },
+          {
+            name: "Find and Replace...",
+            shortcut: "Ctrl+H",
+            ignoreShortcutInMonaco: true,
+            callbackName: "replace",
+          },
+          {
+            name: "Find in Project...",
+            shortcut: "Ctrl+Shift+F",
+            ignoreShortcutInMonaco: true,
+            callbackName: "findInProject",
+          },
+          {
+            name: "Go to Line...",
+            shortcut: "Ctrl+L",
+            ignoreShortcutInMonaco: true,
+            callbackName: "goToLine",
+          },
+          {
+            name: "Go to Symbol...",
+            shortcut: "Ctrl+Shift+O",
+            ignoreShortcutInMonaco: true,
+            callbackName: "goToSymbol",
+          },
+          {
+            name: "Recent Files...",
+            shortcut: "Ctrl+E",
+            ignoreShortcutInMonaco: true,
+            callbackName: "recentFiles",
+          },
+        ],
+      },
+      {
+        label: "Commands",
+        items: [
+          {
+            name: "Command Palette...",
+            shortcut: "Ctrl+Shift+P",
+            ignoreShortcutInMonaco: true,
+            callbackName: "commandPalette",
+          },
+        ],
+      },
+      {
         label: "Timeline",
         items: [
           {
@@ -282,6 +334,10 @@ export default [
               );
             },
             componentId: "deployMenuBtn",
+          },
+          {
+            name: "Bump Build Number",
+            callbackName: "bumpBuild",
           },
         ],
       },

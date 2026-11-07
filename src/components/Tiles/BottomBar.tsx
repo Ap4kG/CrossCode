@@ -1,6 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./BottomBar.css";
-import { Button, Input, Tab, TabList, TabPanel, Tabs } from "@mui/joy";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Input,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+} from "@mui/joy";
 import CommandButton from "../CommandButton";
 import { Terminal, StopCircle } from "@mui/icons-material";
 import { useIDE } from "../../utilities/IDEContext";
@@ -12,25 +21,38 @@ import FilteredConsole, { FilteredConsoleHandle } from "./FilteredConsole";
 import { useParams } from "react-router";
 import { useStore } from "../../utilities/StoreContext";
 import GitPanel from "../GitPanel";
-
-const staticTabs = [
-  {
-    name: "Build Output",
-    component: <CommandConsole />,
-  },
-  {
-    name: "SourceKit-LSP",
-    component: (
-      <Console key="lsp-message" channel="lsp-message" jsonPrettyPrint />
-    ),
-  },
-];
+import ProblemsPanel, { useProblemCount } from "../ProblemsPanel";
+import { useCommandRunner } from "../../utilities/Command";
 
 export default function BottomBar({
   onOpenFile,
+  onOpenFileAt,
 }: {
   onOpenFile: (file: string) => void;
+  onOpenFileAt: (file: string, line?: number) => void;
 }) {
+  const staticTabs = useMemo(
+    () => [
+      {
+        name: "Build Output",
+        component: <CommandConsole onOpenFileAt={onOpenFileAt} />,
+      },
+      {
+        name: "Problems",
+        component: <ProblemsPanel onOpenFileAt={onOpenFileAt} />,
+      },
+      {
+        name: "SourceKit-LSP",
+        component: (
+          <Console key="lsp-message" channel="lsp-message" jsonPrettyPrint />
+        ),
+      },
+    ],
+    [onOpenFileAt]
+  );
+
+  const problems = useProblemCount();
+  const { isRunningCommand, currentCommand } = useCommandRunner();
   const [focused, setFocused] = useState<number>();
   const [refreshSyslog, setRefreshSyslog] = useState<number>(0);
   const [runningSyslog, setRunningSyslog] = useState<boolean>(false);
@@ -96,6 +118,43 @@ export default function BottomBar({
           {staticTabs.map((tab, index) => (
             <Tab key={tab.name} value={index} indicatorPlacement="bottom">
               {tab.name}
+              {tab.name === "Problems" &&
+                (problems.errors > 0 || problems.warnings > 0) && (
+                  <Box
+                    component="span"
+                    sx={{
+                      display: "inline-flex",
+                      gap: "4px",
+                      marginLeft: "6px",
+                      alignItems: "center",
+                    }}
+                  >
+                    {problems.errors > 0 && (
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: "#f45b5b",
+                        }}
+                      >
+                        {problems.errors}
+                      </Box>
+                    )}
+                    {problems.warnings > 0 && (
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          color: "#d8a13a",
+                        }}
+                      >
+                        {problems.warnings}
+                      </Box>
+                    )}
+                  </Box>
+                )}
             </Tab>
           ))}
           <Tab value={staticTabs.length} indicatorPlacement="bottom">
@@ -107,6 +166,24 @@ export default function BottomBar({
           <Tab value={staticTabs.length + 2} indicatorPlacement="bottom">
             Git
           </Tab>
+          {isRunningCommand && (
+            <Box
+              sx={{
+                marginLeft: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                paddingInline: "8px",
+                fontSize: 11,
+                color: "text.tertiary",
+                flexShrink: 0,
+              }}
+              title={currentCommand ?? undefined}
+            >
+              <CircularProgress size="sm" thickness={5} sx={{ minWidth: 14, minHeight: 14 }} />
+              <span>{formatCommandName(currentCommand)}</span>
+            </Box>
+          )}
           {focused === staticTabs.length && (
             <BottomBarFilter
               filter={syslogFilter}
@@ -182,6 +259,22 @@ export default function BottomBar({
       </Tabs>
     </div>
   );
+}
+
+function formatCommandName(command: string | null): string {
+  if (!command) return "Working…";
+  switch (command) {
+    case "build_swift":
+      return "Building…";
+    case "deploy_swift":
+      return "Building & Installing…";
+    case "clean_swift":
+      return "Cleaning…";
+    default: {
+      const words = command.replace(/_/g, " ");
+      return words.charAt(0).toUpperCase() + words.slice(1) + "…";
+    }
+  }
 }
 
 function BottomBarFilter({

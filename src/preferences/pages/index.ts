@@ -3,6 +3,7 @@ import { PreferenceCategory } from "../types";
 
 import { generalPage } from "./general";
 import { appearancePage } from "./appearance";
+import { editorPage } from "./editor";
 import { appleIdPage } from "./appleId";
 import { certificatesPage } from "./certificates";
 import { appIdsPage } from "./appIds";
@@ -13,7 +14,7 @@ import { sourceKitPage } from "./sourcekit";
 const generalCategory: PreferenceCategory = {
   id: "general",
   name: "General",
-  pages: [generalPage, appearancePage],
+  pages: [generalPage, appearancePage, editorPage],
 };
 
 const appleCategory: PreferenceCategory = {

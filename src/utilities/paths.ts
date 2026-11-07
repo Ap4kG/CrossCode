@@ -30,3 +30,21 @@ export function joinPath(root: string, relative: string): string {
   if (normalized === "") return trimmedRoot;
   return trimmedRoot + separator + normalized;
 }
+
+/**
+ * Last segment of a path, without calling the Tauri `path` plugin (each call
+ * is an IPC round trip, which adds up when listing directories).
+ */
+export function basename(value: string): string {
+  const trimmed = value.replace(/[\\/]+$/, "");
+  const index = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  return index === -1 ? trimmed : trimmed.slice(index + 1);
+}
+
+/** Parent directory of a path, keeping its separator style. */
+export function dirname(value: string): string {
+  const trimmed = value.replace(/[\\/]+$/, "");
+  const index = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (index <= 0) return trimmed.slice(0, Math.max(index + 1, 0));
+  return trimmed.slice(0, index);
+}

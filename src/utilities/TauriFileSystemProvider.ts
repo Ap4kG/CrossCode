@@ -20,8 +20,7 @@ import {
   Event,
 } from "@codingame/monaco-vscode-api/vscode/vs/base/common/event";
 import * as fs from "@tauri-apps/plugin-fs";
-import { invoke } from "@tauri-apps/api/core";
-import { platform } from "@tauri-apps/plugin-os";
+import { nativePath } from "./nativePath";
 
 export default class TauriFileSystemProvider
   extends Disposable
@@ -138,9 +137,6 @@ export default class TauriFileSystemProvider
   }
 
   private async path(resource: URI): Promise<string> {
-    if (platform() === "windows") {
-      return await invoke<string>("windows_path", { path: resource.path });
-    }
-    return resource.fsPath;
+    return await nativePath(resource.path);
   }
 }

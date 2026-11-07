@@ -2,41 +2,294 @@
   height: 100%;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--editor-bg, #1f1f24);
 }
+
+/* Colors follow the editor theme, not the app theme, so a light editor in a
+   dark app (or the other way around) still looks coherent. */
+.editor[data-editor-theme="light"] {
+  --editor-bg: #ffffff;
+  --editor-fg: #000000;
+  --tabbar-bg: #ececee;
+  --tabbar-border: #d8d8dc;
+  --tab-inactive-fg: #4a4a4f;
+  --tab-hover-bg: #e1e1e4;
+  --tab-active-border: #c9c9ce;
+  --jump-bg: #f5f5f7;
+  --jump-fg: #6e6e73;
+  --jump-active-fg: #1d1d1f;
+  --jump-border: #e2e2e6;
+  --jump-hover-bg: #e9e9ec;
+}
+
+.editor[data-editor-theme="dark"] {
+  --editor-bg: #1f1f24;
+  --editor-fg: #ffffff;
+  --tabbar-bg: #2a2a2f;
+  --tabbar-border: #3a3a3e;
+  --tab-inactive-fg: #b8bcc4;
+  --tab-hover-bg: #333338;
+  --tab-active-border: #3a3a3e;
+  --jump-bg: #232328;
+  --jump-fg: #9aa0a9;
+  --jump-active-fg: #ffffff;
+  --jump-border: #3a3a3e;
+  --jump-hover-bg: #2e2e34;
+}
+
+/* Xcode's jump bar: project › folder › file, right above the code. */
+.jump-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  background: var(--jump-bg, #232328);
+  border-bottom: 1px solid var(--jump-border, #3a3a3e);
+  color: var(--jump-fg, #9aa0a9);
+  font-size: 12px;
+  line-height: 1;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.jump-item {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: default;
+}
+
+.jump-item:hover {
+  background: var(--jump-hover-bg, #2e2e34);
+}
+
+.jump-item-active {
+  color: var(--jump-active-fg, #ffffff);
+  font-weight: 500;
+}
+
+.jump-separator {
+  opacity: 0.55;
+  margin: 0 1px;
+}
+
+/* Last segment: the symbol under the caret, opens the symbol list. */
+.jump-item-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--jump-active-fg, #ffffff);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  max-width: 280px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.jump-item-current:hover {
+  background: var(--jump-hover-bg, #2e2e34);
+}
+
+.jump-chevron {
+  opacity: 0.7;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* Xcode-style status bar pinned to the bottom of the editor. */
+.editor-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  background: var(--jump-bg, #232328);
+  border-top: 1px solid var(--jump-border, #3a3a3e);
+  color: var(--jump-fg, #9aa0a9);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+}
+
+.editor-status-bar .status-item {
+  flex-shrink: 0;
+}
+
+.editor-status-bar .status-language {
+  color: var(--jump-active-fg, #ffffff);
+  font-weight: 500;
+}
+
+.editor-status-bar .status-spacer {
+  flex: 1 1 auto;
+}
+
 .code-editor {
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   max-height: 100%;
   overflow: hidden;
   position: relative;
+  background: var(--editor-bg, #1f1f24);
   /* transform: translate(0, -100%); */
+}
+
+/* Image tabs: Xcode shows the picture centered on the editor background. */
+.image-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 24px;
+  box-sizing: border-box;
+  background: var(--editor-bg, #1f1f24);
+}
+
+.image-preview-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 3px;
+  /* Checkerboard so transparent PNGs are readable on both themes. */
+  background-image: linear-gradient(45deg, rgba(127, 127, 127, 0.14) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(127, 127, 127, 0.14) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(127, 127, 127, 0.14) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(127, 127, 127, 0.14) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.25);
+}
+
+.image-preview-canvas img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.image-preview-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  color: var(--jump-fg, #9aa0a9);
+  font-size: 12px;
+}
+
+.image-preview-message code {
+  max-width: 640px;
+  font-size: 11px;
+  opacity: 0.8;
+  white-space: pre-wrap;
+  text-align: center;
 }
 
 .tabsContainer {
   display: flex;
-  padding-bottom: 1px;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+  height: 33px;
+  box-sizing: border-box;
+  padding: 4px 6px 0;
   position: relative;
   width: 100%;
-  overflow-x: hidden;
+  background: var(--tabbar-bg, #2a2a2f);
+  border-bottom: 1px solid var(--tabbar-border, #3a3a3e);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tabsContainer::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-wrapper {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   position: relative;
   flex-shrink: 0;
+  height: 100%;
+}
+
+/* Xcode-style tabs: rounded top corners, the active tab merges with the
+   editor background, no underline indicator. */
+.editor .tabsContainer .tab-wrapper > button {
+  height: 28px;
+  min-height: 28px !important;
+  box-sizing: border-box;
+  padding: 0 6px 0 10px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.1px;
+  line-height: 1;
+  color: var(--tab-inactive-fg, #b8bcc4);
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color 100ms, color 100ms;
+}
+
+.editor .tabsContainer .tab-wrapper > button:hover {
+  background: var(--tab-hover-bg, #333338);
+  color: var(--editor-fg, #ffffff);
+}
+
+.editor .tabsContainer .tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.editor .tabsContainer .tab-wrapper > button.Mui-selected {
+  background: var(--editor-bg, #1f1f24);
+  color: var(--editor-fg, #ffffff);
+  border-color: var(--tab-active-border, #3a3a3e);
+  font-weight: 400;
 }
 
 .tabsContainer .Mui-selected::after {
-  content: "";
-  display: block;
-  height: 2px;
-  background: currentColor;
-  position: absolute;
-  bottom: -1px;
-  z-index: 999;
-  left: 0;
-  right: 0;
+  content: none;
+  display: none;
+}
+
+.editor .tabsContainer .tab-wrapper > button .MuiSvgIcon-root {
+  width: 13px;
+  height: 13px;
+  opacity: 0.65;
+}
+
+.editor .tabsContainer .tab-wrapper > button:hover .MuiSvgIcon-root {
+  opacity: 1;
 }
 
 .drop-indicator {
@@ -52,6 +305,6 @@
   position: relative;
   left: auto;
   margin-left: 0;
-  height: 32px;
-  align-self: stretch;
+  height: 28px;
+  align-self: flex-end;
 }

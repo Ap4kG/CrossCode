@@ -17,7 +17,11 @@ export const IGNORED_DIRECTORIES = new Set([
 export const BINARY_EXTENSIONS = new Set([
   "a",
   "app",
+  "avif",
+  "bmp",
   "dylib",
+  "heic",
+  "heif",
   "ipa",
   "jpeg",
   "jpg",
@@ -28,17 +32,78 @@ export const BINARY_EXTENSIONS = new Set([
   "pdf",
   "png",
   "so",
+  "tif",
+  "tiff",
+  "webp",
   "zip",
 ]);
+
+/** Formats the editor can show in its image preview instead of a text model. */
+export const IMAGE_EXTENSIONS = new Set([
+  "avif",
+  "bmp",
+  "gif",
+  "heic",
+  "heif",
+  "icns",
+  "ico",
+  "jpeg",
+  "jpg",
+  "png",
+  "tif",
+  "tiff",
+  "webp",
+]);
+
+function extensionOf(name: string): string | null {
+  const dot = name.lastIndexOf(".");
+  if (dot === -1 || dot === name.length - 1) return null;
+  return name.slice(dot + 1).toLowerCase();
+}
+
+export function isImageFile(name: string): boolean {
+  const extension = extensionOf(name);
+  return extension !== null && IMAGE_EXTENSIONS.has(extension);
+}
+
+export function imageMimeType(name: string): string {
+  switch (extensionOf(name)) {
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "bmp":
+      return "image/bmp";
+    case "ico":
+      return "image/x-icon";
+    case "icns":
+      return "image/icns";
+    case "tif":
+    case "tiff":
+      return "image/tiff";
+    case "avif":
+      return "image/avif";
+    case "heic":
+      return "image/heic";
+    case "heif":
+      return "image/heif";
+    default:
+      return "application/octet-stream";
+  }
+}
 
 export function shouldIgnoreDirectory(name: string): boolean {
   return IGNORED_DIRECTORIES.has(name);
 }
 
 export function isBinaryFile(name: string): boolean {
-  const dot = name.lastIndexOf(".");
-  if (dot === -1 || dot === name.length - 1) return false;
-  return BINARY_EXTENSIONS.has(name.slice(dot + 1).toLowerCase());
+  const extension = extensionOf(name);
+  return extension !== null && BINARY_EXTENSIONS.has(extension);
 }
 
 /**
