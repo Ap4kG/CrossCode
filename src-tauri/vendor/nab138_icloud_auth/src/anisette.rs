@@ -46,20 +46,14 @@ impl AnisetteData {
             panic!("Invalid data!")
         }
         let mut headers = self.base_headers.clone();
-        let old_client_info = headers.remove("X-Mme-Client-Info");
-        if client_info {
-            // NOTE: Apple now rejects the legacy "com.apple.dt.Xcode/3594.4.19"
-            // client info with HTTP 503 + HTML (which surfaces as PlistError).
-            // Keep the anisette-provided AuthKit string instead.
-            match old_client_info {
-                Some(v) => {
-                    headers.insert("X-Mme-Client-Info".to_owned(), v);
-                }
-                None => {
-                    return headers;
-                }
-            }
-        }
+        // Apple now blocks the legacy client-info strings that anisette servers still
+        // report (macOS 13.1 / Xcode 11). Use the string current sideloaders send;
+        // otherwise GSA answers -80045 / 503.
+        headers.insert(
+            "X-Mme-Client-Info".to_owned(),
+            "<Mac15,7> <macOS;27.0;26A5378j> <com.apple.AuthKit/1 (com.apple.akd/1.0)>".to_owned(),
+        );
+        let _ = client_info;
 
         if app_info {
             headers.insert(

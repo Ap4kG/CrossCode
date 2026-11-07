@@ -239,7 +239,7 @@ impl AppleAccount {
         gsa_headers.insert("Accept", HeaderValue::from_str("*/*").unwrap());
         gsa_headers.insert(
             "User-Agent",
-            HeaderValue::from_str("akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0").unwrap(),
+            HeaderValue::from_str("akd/1.0 CFNetwork/811.5.4").unwrap(),
         );
         gsa_headers.insert(
             "X-MMe-Client-Info",
@@ -482,7 +482,7 @@ impl AppleAccount {
         gsa_headers.insert("Accept", HeaderValue::from_str("*/*").unwrap());
         gsa_headers.insert(
             "User-Agent",
-            HeaderValue::from_str("akd/1.0 CFNetwork/978.0.7 Darwin/18.7.0").unwrap(),
+            HeaderValue::from_str("akd/1.0 CFNetwork/811.5.4").unwrap(),
         );
         gsa_headers.insert(
             "X-MMe-Client-Info",

@@ -45,7 +45,7 @@ export default function MenuBar({ callbacks, editor }: MenuBarProps) {
   } = useIDE();
   const [anisetteServer] = useStore<string>(
     "apple-id/anisette-server",
-    "ani.sidestore.io"
+    "mac-ani.jkcoxson.com"
   );
   const { addToast } = useToast();
 

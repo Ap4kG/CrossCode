@@ -35,7 +35,7 @@ const AppIdsComponent = () => {
   const [error, setError] = useState<string | null>(null);
   const [anisetteServer] = useStore<string>(
     "apple-id/anisette-server",
-    "ani.sidestore.io"
+    "mac-ani.jkcoxson.com"
   );
   const [canDelete] = useStore<boolean>("developer/delete-app-ids", false);
   const loadingRef = useRef<boolean>(false);
